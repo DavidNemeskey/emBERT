@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Trains a NER model."""
+"""
+Trains a token classification model. Original code taken from
+https://github.com/kamalkraj/BERT-NER.
+"""
 
 import argparse
 from contextlib import contextmanager
