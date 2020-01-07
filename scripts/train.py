@@ -37,7 +37,8 @@ otqdm = partial(tqdm, file=sys.stdout)
 otrange = partial(trange, file=sys.stdout)
 
 
-class Ner(BertForTokenClassification):
+# TODO do we REALLY need to subclass BertForTokenClassification?!
+class TokenClassifier(BertForTokenClassification):
     # TODO check whether the arguments in the second row are the same as in
     # BertForTokenClassification, but with different names (see below)
     # def forward(self, input_ids=None, attention_mask=None, token_type_ids=None,
@@ -62,6 +63,7 @@ class Ner(BertForTokenClassification):
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss(ignore_index=0)
             # Only keep active parts of the loss
+            # TODO: why is this zeroed?
             attention_mask_label = None
             if attention_mask_label is not None:
                 active_loss = attention_mask_label.view(-1) == 1
@@ -441,8 +443,8 @@ def main():
         # os.path.join(args.bert_model, 'bert_config.json'),
         num_labels=num_labels, finetuning_task=args.task_name
     )
-    model = Ner.from_pretrained(args.bert_model,
-                                from_tf=False, config=config)
+    model = TokenClassifier.from_pretrained(args.bert_model,
+                                            from_tf=False, config=config)
 
     # Make sure only the first process in distributed training will
     # download model & vocab
@@ -582,7 +584,7 @@ def main():
         else:
             # No do_train:
             # Load a trained model and vocabulary that you have fine-tuned
-            model = Ner.from_pretrained(args.output_dir)
+            model = TokenClassifier.from_pretrained(args.output_dir)
             tokenizer = BertTokenizer.from_pretrained(
                 args.output_dir, do_lower_case=args.do_lower_case)
     except KeyboardInterrupt:
