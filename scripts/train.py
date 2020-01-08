@@ -8,157 +8,35 @@ https://github.com/kamalkraj/BERT-NER.
 
 import argparse
 from contextlib import contextmanager
-from dataclasses import dataclass
 import json
 import logging
 import os
 from functools import partial
 import random
 import sys
-from typing import Dict, List, Type
+from typing import Dict
 
 import numpy as np
 from seqeval.metrics import classification_report
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.utils.data import (DataLoader, RandomSampler, Sampler,
-                              SequentialSampler, TensorDataset)
+from torch.utils.data import RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
 from transformers import (AdamW, BertConfig,
-                          BertForTokenClassification, BertTokenizer,
-                          get_linear_schedule_with_warmup)
+                          BertTokenizer, get_linear_schedule_with_warmup)
 
 from data_format import all_formats, get_format_reader
-from processors import all_processors, get_processor, DataProcessor, DataSplit
+from embert.model import TokenClassifier
+from embert.data_wrapper import DataWrapper
+from embert.processors import all_processors, get_processor, DataSplit
 
 
 # tqdm that prints the progress bar to stdout. This helps keeping the log
 # clean
 otqdm = partial(tqdm, file=sys.stdout)
 otrange = partial(trange, file=sys.stdout)
-
-
-# TODO do we REALLY need to subclass BertForTokenClassification?!
-class TokenClassifier(BertForTokenClassification):
-    # TODO check whether the arguments in the second row are the same as in
-    # BertForTokenClassification, but with different names (see below)
-    # def forward(self, input_ids=None, attention_mask=None, token_type_ids=None,
-    #             position_ids=None, head_mask=None, inputs_embeds=None, labels=None)
-    def forward(self, input_ids, attention_mask=None, token_type_ids=None,
-                labels=None, valid_ids=None, attention_mask_label=None):
-        sequence_output = self.bert(input_ids, attention_mask, token_type_ids,
-                                    head_mask=None)[0]
-        batch_size, max_len, feat_dim = sequence_output.shape
-        # TODO: not necessarily CUDA...
-        valid_output = torch.zeros(batch_size, max_len, feat_dim,
-                                   dtype=torch.float32, device='cuda')
-        for i in range(batch_size):
-            jj = -1
-            for j in range(max_len):
-                if valid_ids[i][j].item() == 1:
-                    jj += 1
-                    valid_output[i][jj] = sequence_output[i][j]
-        sequence_output = self.dropout(valid_output)
-        logits = self.classifier(sequence_output)
-
-        if labels is not None:
-            loss_fct = nn.CrossEntropyLoss(ignore_index=0)
-            # Only keep active parts of the loss
-            # TODO: why is this zeroed?
-            attention_mask_label = None
-            if attention_mask_label is not None:
-                active_loss = attention_mask_label.view(-1) == 1
-                active_logits = logits.view(-1, self.num_labels)[active_loss]
-                active_labels = labels.view(-1)[active_loss]
-                loss = loss_fct(active_logits, active_labels)
-            else:
-                loss = loss_fct(logits.view(-1, self.num_labels),
-                                labels.view(-1))
-            return (loss, logits)
-        else:
-            # TODO Output should also be different: a tuple, whose content
-            # depends on how the function was called
-            return (logits,)
-
-
-@dataclass
-class InputFeatures:
-    """A single set of features of data."""
-    input_ids: List[int]
-    input_mask: List[int]
-    segment_ids: List[int]
-    label_ids: List[int]
-    valid_ids: List[int]
-    label_mask: List[int]
-
-    def pad(self, sequence_length):
-        """Pads the lists to _sequence_length_."""
-        how_many = sequence_length - len(self.input_ids)
-        if how_many > 0:
-            pad = [0] * how_many
-            for field, value in self.__dict__.items():
-                value.extend(pad if field != 'valid_ids' else [1] * how_many)
-        # label_ids and label_mask are shorter (|words| instead of |tokens|)
-        label_pad = [0] * (sequence_length - len(self.label_ids))
-        self.label_ids.extend(label_pad)
-        self.label_mask.extend(label_pad)
-        for field, value in self.__dict__.items():
-            assert len(value) == sequence_length, \
-                f'len({field}) = {len(value)} != {sequence_length}'
-
-
-def convert_examples_to_features(examples, label_list,
-                                 max_seq_length, tokenizer):
-    """Loads a data file into a list of :class:`InputFeatures`s."""
-    label_map = {label: i for i, label in enumerate(label_list, 1)}
-
-    features = []
-    for ex_index, example in enumerate(examples):
-        tokens = []
-        labels = example.labels[:]
-        valid = []
-        for i, word in enumerate(example.text_a):
-            word_tokens = tokenizer.tokenize(word)
-            tokens.extend(word_tokens)
-            for m in range(len(word_tokens)):
-                valid.append(1 if m == 0 else 0)
-
-        # TODO WTF check this out in the original BERT code -- tokens and labels
-        # have different lengths, so this doesn't make any sense
-        if len(tokens) > max_seq_length - 2:
-            tokens = tokens[0:(max_seq_length - 2)]
-            labels = labels[0:(max_seq_length - 2)]
-            valid = valid[0:(max_seq_length - 2)]
-
-        ntokens = ['[CLS]'] + tokens + ['[SEP]']
-        segment_ids = [0] * len(ntokens)
-        label_ids = [label_map[l] for l in ['[CLS]'] + labels + ['[SEP]']]
-        label_mask = [1] * len(label_ids)
-        valid.insert(0, 1)
-        valid.append(1)
-        input_ids = tokenizer.convert_tokens_to_ids(ntokens)
-        input_mask = [1] * len(input_ids)
-
-        if ex_index < 5:
-            logging.info('*** Example ***')
-            logging.info(f'guid: {example.guid}')
-            logging.info(f'tokens: {" ".join(tokens)}')
-            logging.info(f'input_ids: {" ".join(str(x) for x in input_ids)}')
-            logging.info(f'input_mask: {" ".join(str(x) for x in input_mask)}')
-            logging.info(f'segment_ids: {" ".join(str(x) for x in segment_ids)}')
-            # logging.info("label: %s (id = %d)" % (example.labels, label_ids))
-
-        feature = InputFeatures(input_ids=input_ids,
-                                input_mask=input_mask,
-                                segment_ids=segment_ids,
-                                label_ids=label_ids,
-                                valid_ids=valid,
-                                label_mask=label_mask)
-        feature.pad(max_seq_length)
-        features.append(feature)
-    return features
 
 
 def parse_arguments():
@@ -253,58 +131,8 @@ def real_loss(loss, n_gpu):
     return loss.mean() if n_gpu > 1 else loss
 
 
-class DataWrapper:
-    def __init__(self, processor: DataProcessor, split: DataSplit,
-                 sampler_cls: Type[Sampler], batch_size: int,
-                 max_seq_length: int, tokenizer: BertTokenizer,
-                 device: torch.device):
-        self.processor = processor
-        self.split = split
-        self.device = device
-
-        examples = processor.get_examples(split)
-        features = convert_examples_to_features(
-            examples, processor.get_labels(), max_seq_length, tokenizer)
-
-        # TODO: is it possible to do this better?
-        all_input_ids = torch.tensor([f.input_ids for f in features],
-                                     dtype=torch.long, device=device)
-        all_input_mask = torch.tensor([f.input_mask for f in features],
-                                      dtype=torch.long, device=device)
-        all_segment_ids = torch.tensor([f.segment_ids for f in features],
-                                       dtype=torch.long, device=device)
-        all_label_ids = torch.tensor([f.label_ids for f in features],
-                                     dtype=torch.long, device=device)
-        all_valid_ids = torch.tensor([f.valid_ids for f in features],
-                                     dtype=torch.long, device=device)
-        all_lmask_ids = torch.tensor([f.label_mask for f in features],
-                                     dtype=torch.long, device=device)
-
-        self.data = TensorDataset(all_input_ids, all_input_mask,
-                                  all_segment_ids, all_label_ids,
-                                  all_valid_ids, all_lmask_ids)
-        sampler = sampler_cls(self.data)
-        self.dataloader = DataLoader(self.data, sampler=sampler,
-                                     batch_size=batch_size)
-
-        self.num_examples = len(self.data)
-        self.batch_size = batch_size
-        self.num_steps = len(self)
-
-    def __iter__(self):
-        for batch in self.dataloader:
-            # Crop tensors to actual length
-            actual_seq_length = batch[1].sum(dim=1).max()
-            yield (t[:, :actual_seq_length].contiguous() for t in batch)
-        # yield from self.dataloader
-
-    def __len__(self):
-        # Might not work for iterable datasets
-        return len(self.dataloader)
-
-
-def train(model: nn.Module, processor: DataProcessor,
-          split: DataSplit, max_seq_length: int, tokenizer: BertTokenizer,
+def train(model: nn.Module, wrapper: DataWrapper,
+          max_seq_length: int, tokenizer: BertTokenizer,
           batch_size: int, label_map: Dict[str, int], device):
     """Runs a single epoch of training."""
     raise NotImplementedError('train() is not implemented yet')
@@ -365,6 +193,11 @@ def evaluate(model: nn.Module, wrapper: DataWrapper, label_map: Dict[str, int]):
 
 @contextmanager
 def save_random_state():
+    """
+    Saves the states of all random number generators prior to executing a code
+    block and loads them back afterwards. Useful to add evaluation steps
+    without compromising the reproducability of training.
+    """
     python_state = random.getstate()
     numpy_state = np.random.get_state()
     torch_state = torch.get_rng_state()

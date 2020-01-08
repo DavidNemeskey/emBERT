@@ -3,26 +3,11 @@
 
 """Data processors."""
 
-from dataclasses import dataclass
 from enum import Enum
 import os
 from typing import Callable, List, Tuple
 
-
-@dataclass
-class InputExample:
-    """A single training/test example for simple sequence classification."""
-    # Unique id for the example.
-    guid: str
-    # The untokenized text of the first sequence. For single
-    # sequence tasks, only this sequence must be specified.
-    text_a: List[str]
-    # The untokenized text of the second sequence.
-    # Only must be specified for sequence pair tasks.
-    text_b: List[str] = None
-    # The label of the example. This should be
-    # specified for train and dev examples, but not for test examples.
-    labels: List[str] = None
+from embert.data_classes import InputExample
 
 
 class DataSplit(Enum):
