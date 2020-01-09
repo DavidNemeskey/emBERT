@@ -67,13 +67,13 @@ class DataProcessor:
 
 class CoNLLNerProcessor(DataProcessor):
     """Processor for the CoNLL-2003 data set."""
-
     def get_labels(self):
         return ["O", "B-MISC", "I-MISC",  "B-PER", "I-PER", "B-ORG", "I-ORG",
                 "B-LOC", "I-LOC", "[CLS]", "[SEP]"]
 
 
 class SzegedNerProcessor(DataProcessor):
+    """Processor for the Szeged NER data set."""
     def get_labels(self):
         return ['1-LOC', '1-MISC', '1-ORG', '1-PER', 'B-LOC', 'B-MISC',
                 'B-ORG', 'B-PER', 'E-LOC', 'E-MISC', 'E-ORG', 'E-PER', 'I-LOC',
@@ -81,11 +81,13 @@ class SzegedNerProcessor(DataProcessor):
 
 
 class SzegedChunkProcessor(DataProcessor):
+    """Processor for the Szeged chunking data set (BIO version)."""
     def get_labels(self):
         return ['B-NP', 'I-NP', 'O', '[CLS]', '[SEP]']
 
 
 class SzegedBIOESChunkProcessor(DataProcessor):
+    """Processor for the Szeged chunking data set (BIOE1 version)."""
     def get_labels(self):
         return ['1-NP', 'B-NP', 'E-NP', 'I-NP', 'O', '[CLS]', '[SEP]']
 

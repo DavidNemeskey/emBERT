@@ -14,7 +14,6 @@ import os
 from functools import partial
 import random
 import sys
-from typing import Dict
 
 import numpy as np
 from seqeval.metrics import classification_report
@@ -88,11 +87,11 @@ def parse_arguments():
                              'learning rate warmup for. E.g., 0.1 = 10% of '
                              'training.')
     parser.add_argument("--weight_decay", default=0.01, type=float,
-                        help='Weight deay if we apply some.')
+                        help='Weight decay if we apply some.')
     parser.add_argument("--adam_epsilon", default=1e-8, type=float,
                         help='Epsilon for Adam optimizer.')
     parser.add_argument("--max_grad_norm", default=1.0, type=float,
-                        help='Max gradient norm.')
+                        help='Maximum gradient norm.')
     parser.add_argument("--no_cuda", action='store_true',
                         help='Whether not to use CUDA when available')
     parser.add_argument("--local_rank", type=int, default=-1,
@@ -131,15 +130,168 @@ def real_loss(loss, n_gpu):
     return loss.mean() if n_gpu > 1 else loss
 
 
-def train(model: nn.Module, wrapper: DataWrapper,
-          max_seq_length: int, tokenizer: BertTokenizer,
-          batch_size: int, label_map: Dict[str, int], device):
-    """Runs a single epoch of training."""
-    raise NotImplementedError('train() is not implemented yet')
+class Trainer:
+    """Runs the training."""
+    def __init__(self, model: nn.Module, train_wrapper: DataWrapper,
+                 valid_wrapper: DataWrapper, device,
+                 epochs: float = 3, batch_size: int = 32,
+                 learning_rate: float = 5e-5, warmup_proportion: float = 0.1,
+                 adam_epsilon: float = 1e-8, weight_decay: float = 0.01,
+                 max_grad_norm: float = 1.0, gradient_accumulation_steps: int = 1,
+                 local_rank: int = -1, n_gpu: int = 1,
+                 fp16: bool = False, fp16_opt_level: str = 'O1'):
+        """
+        Initializes the objects required for training (optimizer, scheduler,
+        etc.)
+
+        :param model: the model to train.
+        :param train_wrapper: the :class:`DataWrapper` for the train data.
+        :param valid_wrapper: the :class:`DataWrapper` for the validation data.
+        :param device: the :mod:`torch` device the training should run on.
+        :param epochs: the total number of training epochs to perform.
+        :param batch_size: batch size for training.
+        :param learning_rate: the initial learning rate for Adam.
+        :param warmup_proportion: proportion of training to perform linear
+                                  learning rate warmup for.
+        :param adam_epsilon: Epsilon for Adam optimizer.
+        :param weight_decay: weight decay if we apply some.
+        :param max_grad_norm: maximum gradient norm.
+        :param gradient_accumulation_steps: number of updates steps to
+                                            accumulate before performing a
+                                            backward/update pass.
+        :param local_rank: local_rank for distributed training on GPUs.
+        :param n_gpu: the number of GPUs to train on.
+        :param fp16: whether to use 16-bit float precision instead of 32-bit.
+        :param fp16_opt_level: for fp16: Apex AMP optimization level selected.
+        """
+        self.model = model
+        self.train_wrapper = train_wrapper
+        self.valid_wrapper = valid_wrapper
+        self.device = device
+        self.max_grad_norm = max_grad_norm
+        self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.fp16 = fp16
+        self.n_gpu = n_gpu
+
+        self.global_step = 0
+        self.label_list = self.train_wrapper.processor.get_labels()
+        self.label_map = {i: label for i, label in enumerate(self.label_list, 1)}
+
+        # Set up model on device, optimizer, etc.
+        model.to(device)
+
+        # TODO: same as len(train_wrapper)?
+        num_batches = train_wrapper.num_examples / batch_size
+        opt_steps_per_epoch = num_batches / gradient_accumulation_steps
+        self.num_train_optimization_steps = self.epochs * opt_steps_per_epoch
+        if local_rank != -1:
+            self.num_train_optimization_steps //= torch.distributed.get_world_size()
+
+        # Optimization
+        param_optimizer = list(model.named_parameters())
+        no_decay = ['bias', 'LayerNorm.weight']
+        optimizer_grouped_parameters = [
+            {'params': [param for name, param in param_optimizer
+                        if not any(nd in name for nd in no_decay)],
+             'weight_decay': weight_decay},
+            {'params': [param for name, param in param_optimizer
+                        if any(nd in name for nd in no_decay)],
+             'weight_decay': 0.0}
+        ]
+        warmup_steps = int(warmup_proportion * self.num_train_optimization_steps)
+        self.optimizer = AdamW(optimizer_grouped_parameters,
+                               lr=learning_rate, eps=adam_epsilon)
+        self.scheduler = get_linear_schedule_with_warmup(
+            self.optimizer, num_warmup_steps=warmup_steps,
+            num_training_steps=self.num_train_optimization_steps
+        )
+
+        # 16-bit floating-point precision
+        if fp16:
+            try:
+                from apex import amp
+                self.amp = amp
+            except ImportError:
+                raise ImportError(
+                    'Please install apex from https://www.github.com/nvidia/apex '
+                    'to use fp16 training.'
+                )
+            self.model, self.optimizer = amp.initialize(
+                self.model, self.optimizer, opt_level=fp16_opt_level)
+
+        # multi-gpu training (should be after apex fp16 initialization)
+        if n_gpu > 1:
+            self.model = torch.nn.DataParallel(self.model)
+
+        if local_rank != -1:
+            self.model = torch.nn.parallel.DistributedDataParallel(
+                self.model, device_ids=[local_rank],
+                output_device=local_rank, find_unused_parameters=True
+            )
+
+    def train(self):
+        logging.info(f'***** Running training *****')
+        logging.info(f'  Num examples = {self.train_wrapper.num_examples}')
+        logging.info(f'  Batch size = {self.train_batch_size}')
+        logging.info(f'  Num steps = {self.num_train_optimization_steps}')
+
+        stats = {'train_loss': 0, 'num_examples': 0, 'num_steps': 0}
+        for epoch in otrange(int(self.epochs), desc='Epoch'):
+            self.train_step(stats)
+
+            logging.info(f'Validation for epoch {epoch}:')
+            with save_random_state():
+                loss, report = evaluate(self.model, self.valid_wrapper)
+                loss = real_loss(loss, self.n_gpu)
+            logging.debug(f'Validation loss in epoch {epoch}: {loss}')
+            for i, param_group in enumerate(self.optimizer.param_groups):
+                logging.info(f'LR {i}: {param_group["lr"]}')
+            # new_lr = sum(pg['lr'] for pg in self.optimizer.param_groups) / \
+            #     len(self.optimizer.param_groups)
+            # if new_lr < last_lr * 0.9:
+            #     ...
+
+    def train_step(self, stats):
+        """Runs a single epoch of training."""
+        self.model.train()
+        for step, (
+            input_ids, input_mask, segment_ids, label_ids, valid_ids, l_mask
+        ) in enumerate(otqdm(self.train_wrapper, desc='Iteration')):
+            loss, _ = self.model(input_ids, segment_ids, input_mask,
+                                 label_ids, valid_ids, l_mask)
+            loss = real_loss(loss, self.n_gpu)
+            if self.gradient_accumulation_steps > 1:
+                loss /= self.gradient_accumulation_steps
+
+            if self.fp16:
+                with self.amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.amp.master_params(self.optimizer), self.max_grad_norm)
+            else:
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(),
+                                               self.max_grad_norm)
+
+            stats['train_loss'] += loss.item()
+            stats['num_examples'] += input_ids.size(0)
+            stats['num_steps'] += 1
+            if (step + 1) % self.gradient_accumulation_steps == 0:
+                self.optimizer.step()
+                self.scheduler.step()  # Update learning rate schedule
+                self.model.zero_grad()
+                self.global_step += 1
+
+    def get_real_model(self):
+        """Returns the model without all the (e.g. distributed) wrappers."""
+        return self.model.module if hasattr(self.model, 'module') else self.model
 
 
-def evaluate(model: nn.Module, wrapper: DataWrapper, label_map: Dict[str, int]):
+def evaluate(model: nn.Module, wrapper: DataWrapper):
     """Runs a full evaluation loop."""
+    label_list = wrapper.processor.get_labels()
+    label_map = {i: label for i, label in enumerate(label_list, 1)}
+
     logging.info(f'***** Running evaluation: {wrapper.split.value} *****')
     logging.info(f'  Num examples = {wrapper.num_examples}')
     logging.info(f'  Batch size = {wrapper.batch_size}')
@@ -249,8 +401,7 @@ def main():
 
     format_reader = get_format_reader(args.data_format)
     processor = get_processor(args.task_name)(args.data_dir, format_reader)
-    label_list = processor.get_labels()
-    num_labels = len(label_list) + 1
+    num_labels = len(processor.get_labels()) + 1
 
     tokenizer = BertTokenizer.from_pretrained(
         args.bert_model, do_lower_case=args.do_lower_case)
@@ -287,136 +438,43 @@ def main():
     if args.local_rank == 0:
         torch.distributed.barrier()
 
-    model.to(device)
-
-    # Optimization
-    param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'LayerNorm.weight']
-    optimizer_grouped_parameters = [
-        {'params': [param for name, param in param_optimizer
-                    if not any(nd in name for nd in no_decay)],
-         'weight_decay': args.weight_decay},
-        {'params': [param for name, param in param_optimizer
-                    if any(nd in name for nd in no_decay)],
-         'weight_decay': 0.0}
-    ]
-    warmup_steps = int(args.warmup_proportion * num_train_optimization_steps)
-    optimizer = AdamW(optimizer_grouped_parameters,
-                      lr=args.learning_rate, eps=args.adam_epsilon)
-    last_lr = args.learning_rate
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=warmup_steps,
-        num_training_steps=num_train_optimization_steps
-    )
-
-    # 16-bit floating-point precision
-    if args.fp16:
-        try:
-            from apex import amp
-        except ImportError:
-            raise ImportError(
-                'Please install apex from https://www.github.com/nvidia/apex '
-                'to use fp16 training.'
-            )
-        model, optimizer = amp.initialize(model, optimizer,
-                                          opt_level=args.fp16_opt_level)
-
-    # multi-gpu training (should be after apex fp16 initialization)
-    if n_gpu > 1:
-        model = torch.nn.DataParallel(model)
-
-    if args.local_rank != -1:
-        model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[args.local_rank],
-            output_device=args.local_rank, find_unused_parameters=True
-        )
-
-    # The effective number of steps (i.e. minibatches / backpropagations)
-    global_step = 0
-    logging.debug(f'label list {label_list}')
-    label_map = {i: label for i, label in enumerate(label_list, 1)}
-    logging.info(f'Label map: {label_map}')
     try:
         if args.do_train:
-            if args.local_rank == -1:
-                train_sampler = RandomSampler
-            else:
-                train_sampler = DistributedSampler
-
+            # Create the data wrappers
             train_wrapper = DataWrapper(
-                processor, DataSplit.TRAIN, train_sampler, train_batch_size,
-                args.max_seq_length, tokenizer, device
+                processor, DataSplit.TRAIN,
+                RandomSampler if args.local_rank == -1 else DistributedSampler,
+                train_batch_size, args.max_seq_length, tokenizer, device
             )
             valid_wrapper = DataWrapper(
                 processor, DataSplit.VALID, SequentialSampler, args.eval_batch_size,
                 args.max_seq_length, tokenizer, device
             )
 
-            logging.info(f'***** Running training *****')
-            logging.info(f'  Num examples = {train_wrapper.num_examples}')
-            logging.info(f'  Batch size = {train_batch_size}')
-            logging.info(f'  Num steps = {num_train_optimization_steps}')
-
-            model.train()
-            for epoch in otrange(int(args.num_train_epochs), desc='Epoch'):
-                logging.info(f'Epoch {epoch}.')
-                tr_loss = 0
-                nb_tr_examples, nb_tr_steps = 0, 0
-                for step, (
-                    input_ids, input_mask, segment_ids, label_ids, valid_ids, l_mask
-                ) in enumerate(otqdm(train_wrapper, desc='Iteration')):
-                    loss, _ = model(input_ids, segment_ids, input_mask,
-                                    label_ids, valid_ids, l_mask)
-                    loss = real_loss(loss, n_gpu)
-                    if args.gradient_accumulation_steps > 1:
-                        loss /= args.gradient_accumulation_steps
-
-                    if args.fp16:
-                        with amp.scale_loss(loss, optimizer) as scaled_loss:
-                            scaled_loss.backward()
-                        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer),
-                                                       args.max_grad_norm)
-                    else:
-                        loss.backward()
-                        torch.nn.utils.clip_grad_norm_(model.parameters(),
-                                                       args.max_grad_norm)
-
-                    tr_loss += loss.item()
-                    nb_tr_examples += input_ids.size(0)
-                    nb_tr_steps += 1
-                    if (step + 1) % args.gradient_accumulation_steps == 0:
-                        optimizer.step()
-                        scheduler.step()  # Update learning rate schedule
-                        model.zero_grad()
-                        global_step += 1
-                else:
-                    logging.info(f'Validation for epoch {epoch}:')
-                    with save_random_state():
-                        loss, report = evaluate(model, valid_wrapper, label_map)
-                        loss = real_loss(loss, n_gpu)
-                    logging.debug(f'Validation loss in epoch {epoch}: {loss}')
-                    for i, param_group in enumerate(optimizer.param_groups):
-                        logging.info(f'LR {i}: {param_group["lr"]}')
-                    new_lr = sum(pg['lr'] for pg in optimizer.param_groups) / len(optimizer.param_groups)
-                    if new_lr < last_lr * 0.9:
-                        logging.info(f'new_lr: {new_lr}')
-                        if new_lr < 1e-12:
-                            logging.info(f'Stopping: LR fell below 1e-10')
-                            break
+            trainer = Trainer(
+                model, train_wrapper, valid_wrapper, device,
+                args.num_train_epochs, train_batch_size,
+                args.learning_rate, args.warmup_proportion,
+                args.adam_epsilon, args.weight_decay,
+                args.max_grad_norm, args.gradient_accumulation_steps,
+                args.local_rank, n_gpu, args.fp16, args.fp16_opt_level
+            )
+            trainer.train()
 
             # Save the configuration and vocabulary associated with the
             # trained model.
             tokenizer.save_pretrained(args.output_dir)
-            model_to_save = model.module if hasattr(model, 'module') else model
-            model_to_save.save_pretrained(args.output_dir)
+            trainer.get_real_model().save_pretrained(args.output_dir)
             model_config = {
                 'bert_model': args.bert_model, 'do_lower': args.do_lower_case,
                 'max_seq_length': args.max_seq_length,
-                'num_labels': len(label_list) + 1,
-                'label_map': label_map
+                'num_labels': num_labels,
+                'label_map': trainer.label_map
             }
             with open(os.path.join(args.output_dir, 'model_config.json'), 'w') as f:
                 json.dump(model_config, f)
+
+            del train_wrapper, valid_wrapper, trainer
         else:
             # No do_train:
             # Load a trained model and vocabulary that you have fine-tuned
@@ -434,7 +492,7 @@ def main():
             processor, DataSplit.TEST, SequentialSampler, args.eval_batch_size,
             args.max_seq_length, tokenizer, device
         )
-        _, report = evaluate(model, test_wrapper, label_map)
+        _, report = evaluate(model, test_wrapper)
         output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
         with open(output_eval_file, 'wt') as writer:
             writer.write(report)
