@@ -15,6 +15,7 @@ class DataWrapper:
                  device: torch.device):
         self.processor = processor
         self.split = split
+        self.tokenizer = tokenizer
         self.device = device
 
         examples = processor.get_examples(split)

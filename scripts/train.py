@@ -168,6 +168,7 @@ class Trainer:
         self.train_wrapper = train_wrapper
         self.valid_wrapper = valid_wrapper
         self.device = device
+        self.epochs = epochs
         self.max_grad_norm = max_grad_norm
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.fp16 = fp16
@@ -232,7 +233,7 @@ class Trainer:
     def train(self):
         logging.info(f'***** Running training *****')
         logging.info(f'  Num examples = {self.train_wrapper.num_examples}')
-        logging.info(f'  Batch size = {self.train_batch_size}')
+        logging.info(f'  Batch size = {self.train_wrapper.batch_size}')
         logging.info(f'  Num steps = {self.num_train_optimization_steps}')
 
         stats = {'train_loss': 0, 'num_examples': 0, 'num_steps': 0}
