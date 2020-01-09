@@ -26,7 +26,7 @@ from tqdm import tqdm, trange
 from transformers import (AdamW, BertConfig,
                           BertTokenizer, get_linear_schedule_with_warmup)
 
-from data_format import all_formats, get_format_reader
+from embert.data_format import all_formats, get_format_reader
 from embert.model import TokenClassifier
 from embert.data_wrapper import DataWrapper
 from embert.processors import all_processors, get_processor, DataSplit
