@@ -288,6 +288,30 @@ class Trainer:
         return self.model.module if hasattr(self.model, 'module') else self.model
 
 
+def predict(model: nn.Module, wrapper: DataWrapper):
+    label_list = wrapper.processor.get_labels()
+    label_map = {i: label for i, label in enumerate(label_list, 1)}
+
+    y_pred = []
+    model.eval()
+    for (
+        input_ids, input_mask, segment_ids, label_ids, valid_ids, l_mask
+    ) in otqdm(wrapper, desc=f'Evaluating {wrapper.split.value}...'):
+        with torch.no_grad():
+            logits = model(input_ids, segment_ids, input_mask, labels=None,
+                           valid_ids=valid_ids, attention_mask_label=l_mask)[0]
+        logits = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
+        # batch_size x seq_len
+        logits = logits.detach().cpu().numpy()[:, 1:]
+
+        y_pred += [
+            label_map[label_id] if label_id != 0 else random.choice(label_list)
+            for i, batch in enumerate(logits) for j, label_id in enumerate(batch)
+        ]
+
+    return y_pred
+
+
 def evaluate(model: nn.Module, wrapper: DataWrapper):
     """Runs a full evaluation loop."""
     label_list = wrapper.processor.get_labels()
@@ -314,7 +338,6 @@ def evaluate(model: nn.Module, wrapper: DataWrapper):
         input_mask = input_mask.to('cpu').numpy()
 
         num_zero_labels = 0
-        label_list = list(label_map.values())
         for i, label in enumerate(label_ids):
             temp_1 = []
             temp_2 = []
