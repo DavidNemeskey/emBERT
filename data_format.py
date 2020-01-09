@@ -28,4 +28,14 @@ def read_tsv(filename):
     return data
 
 
-_readers = {'stupid': read_stupid, 'tsv': read_tsv}
+_readers = {'tsv': read_tsv}
+
+
+def all_formats():
+    """Returns the list of data format readers available."""
+    return _readers.keys()
+
+
+def get_format_reader(format):
+    """Returns the data format reader associated with _format_."""
+    return _readers[format]
