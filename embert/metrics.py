@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Metrics-related code."""
+"""
+Metrics-related code. Not used currently, but could be if early stopping is
+required.
+"""
 
 from dataclasses import dataclass
 from enum import auto, Enum
