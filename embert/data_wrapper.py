@@ -114,6 +114,72 @@ class DataWrapper:
             yield (t[:, :actual_seq_length].contiguous() for t in batch)
         # yield from self.dataloader
 
-    def __len__(self):
-        # Might not work for iterable datasets
+    def __len__(self) -> int:
+        """
+        Returns the number of batches in the dataset.
+
+        .. warning::
+            Might not work for iterable datasets.
+        """
         return len(self.dataloader)
+
+
+class SentenceWrapper:
+    """
+    A simple reimplementation of :class:`DataWrapper`. Converts single sentences
+    to :class:`InputFeatures` one-by-one; to be used in the emtsv wrapper.
+    """
+    def __init__(self, processor: DataProcessor, max_seq_length: int,
+                 tokenizer: PreTrainedTokenizer, device: torch.device):
+        self.processor = processor
+        self.max_seq_length = max_seq_length
+        self.tokenizer = tokenizer
+        self.device = device
+
+        self.dataset = None
+
+    def set_sentence(self, sentence: List[str]):
+        """
+        Sets _sentence_ as the current sentence to be returned by
+        :meth:`__iter__`. Also returns the corresponding :class:`TensorDataset`
+        so that it can be used right away, if needed.
+        """
+        tokens = []
+        valid = []
+        for i, word in enumerate(sentence):
+            word_tokens = self.tokenizer.tokenize(word)
+            tokens.extend(word_tokens)
+            for m in range(len(word_tokens)):
+                valid.append(1 if m == 0 else 0)
+
+        if len(tokens) > self.max_seq_length - 2:
+            tokens = tokens[0:(self.max_seq_length - 2)]
+            valid = valid[0:(self.max_seq_length - 2)]
+
+        ntokens = ['[CLS]'] + tokens + ['[SEP]']
+        segment_ids = [0] * len(ntokens)
+        valid.insert(0, 1)
+        valid.append(1)
+        input_ids = self.tokenizer.convert_tokens_to_ids(ntokens)
+        input_mask = [1] * len(input_ids)
+        labels = torch.empty([1, min(len(sentence), self.max_seq_length)],
+                             dtype=torch.long, device=self.device),
+
+        self.dataset = TensorDataset(
+            torch.tensor(input_ids, dtype=torch.long, device=self.device),
+            # TODO don't need
+            torch.tensor(input_mask, dtype=torch.long, device=self.device),
+            # TODO don't need
+            torch.tensor(segment_ids, dtype=torch.long, device=self.device),
+            # This isn't used: to None?
+            labels,
+            torch.tensor(valid, dtype=torch.long, device=self.device),
+            torch.ones_like(labels),
+        )
+        return self.dataset
+
+    def __iter__(self):
+        yield self.dataset
+
+    def __len__(self):
+        return 1 if self.dataset else 0

@@ -134,7 +134,7 @@ def real_loss(loss, n_gpu):
 class Trainer:
     """Runs the training."""
     def __init__(self, model: nn.Module, train_wrapper: DataWrapper,
-                 valid_wrapper: DataWrapper, device,
+                 valid_wrapper: DataWrapper, device: torch.device,
                  epochs: float = 3, batch_size: int = 32,
                  learning_rate: float = 5e-5, warmup_proportion: float = 0.1,
                  adam_epsilon: float = 1e-8, weight_decay: float = 0.01,
