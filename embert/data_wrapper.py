@@ -163,17 +163,17 @@ class SentenceWrapper:
         input_ids = self.tokenizer.convert_tokens_to_ids(ntokens)
         input_mask = [1] * len(input_ids)
         labels = torch.empty([1, min(len(sentence), self.max_seq_length)],
-                             dtype=torch.long, device=self.device),
+                             dtype=torch.long, device=self.device)
 
         self.dataset = TensorDataset(
-            torch.tensor(input_ids, dtype=torch.long, device=self.device),
+            torch.tensor(input_ids, dtype=torch.long, device=self.device).unsqueeze(0),
             # TODO don't need
-            torch.tensor(input_mask, dtype=torch.long, device=self.device),
+            torch.tensor(input_mask, dtype=torch.long, device=self.device).unsqueeze(0),
             # TODO don't need
-            torch.tensor(segment_ids, dtype=torch.long, device=self.device),
+            torch.tensor(segment_ids, dtype=torch.long, device=self.device).unsqueeze(0),
             # This isn't used: to None?
             labels,
-            torch.tensor(valid, dtype=torch.long, device=self.device),
+            torch.tensor(valid, dtype=torch.long, device=self.device).unsqueeze(0),
             torch.ones_like(labels),
         )
         return self.dataset
