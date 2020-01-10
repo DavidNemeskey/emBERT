@@ -8,10 +8,11 @@ https://github.com/kamalkraj/BERT-NER.
 
 import argparse
 from contextlib import contextmanager
+from functools import partial
+from itertools import takewhile
 import json
 import logging
 import os
-from functools import partial
 import random
 import sys
 
@@ -244,6 +245,8 @@ class Trainer:
             with save_random_state():
                 loss, report = evaluate(self.model, self.valid_wrapper)
                 loss = real_loss(loss, self.n_gpu)
+            with save_random_state():
+                _ = predict(self.model, self.valid_wrapper)
             logging.debug(f'Validation loss in epoch {epoch}: {loss}')
             for i, param_group in enumerate(self.optimizer.param_groups):
                 logging.info(f'LR {i}: {param_group["lr"]}')
@@ -291,7 +294,9 @@ class Trainer:
 def predict(model: nn.Module, wrapper: DataWrapper):
     label_list = wrapper.processor.get_labels()
     label_map = {i: label for i, label in enumerate(label_list, 1)}
+    sep_id = len(label_list)  # [SEP] is always the last label
 
+    inputs = []
     y_pred = []
     model.eval()
     for (
@@ -303,11 +308,14 @@ def predict(model: nn.Module, wrapper: DataWrapper):
         logits = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
         # batch_size x seq_len
         logits = logits.detach().cpu().numpy()[:, 1:]
+        input_ids = input_ids.detach().cpu().numpy()[:, 1:]
 
         y_pred += [
-            label_map[label_id] if label_id != 0 else random.choice(label_list)
-            for i, batch in enumerate(logits) for j, label_id in enumerate(batch)
+            [label_map[label_id] if label_id != 0 else random.choice(label_list)
+             for label_id in takewhile(lambda l: l != sep_id, seq)]
+            for seq in logits
         ]
+        inputs += [wrapper.tokenizer.convert_ids_to_tokens(seq_ids) for seq_ids in input_ids]
 
     return y_pred
 
@@ -428,7 +436,8 @@ def main():
     num_labels = len(processor.get_labels()) + 1
 
     tokenizer = BertTokenizer.from_pretrained(
-        args.bert_model, do_lower_case=args.do_lower_case)
+        args.bert_model, do_lower_case=args.do_lower_case,
+        do_basic_tokenize=False)  # In quntoken we trust
 
     train_examples = None
     num_train_optimization_steps = 0
@@ -504,7 +513,8 @@ def main():
             # Load a trained model and vocabulary that you have fine-tuned
             model = TokenClassifier.from_pretrained(args.output_dir)
             tokenizer = BertTokenizer.from_pretrained(
-                args.output_dir, do_lower_case=args.do_lower_case)
+                args.output_dir, do_lower_case=args.do_lower_case,
+                do_basic_tokenize=False)  # In quntoken we trust
     except KeyboardInterrupt:
         logging.info('Stopping training...')
 
@@ -516,7 +526,8 @@ def main():
             processor, DataSplit.TEST, SequentialSampler, args.eval_batch_size,
             args.max_seq_length, tokenizer, device
         )
-        _, report = evaluate(model, test_wrapper)
+        with save_random_state():
+            _, report = evaluate(model, test_wrapper)
         output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
         with open(output_eval_file, 'wt') as writer:
             writer.write(report)
