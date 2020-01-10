@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""Defines the :class:`DataWrapper` class."""
+
 import logging
 from typing import List, Type
 
