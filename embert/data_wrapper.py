@@ -83,10 +83,13 @@ class DataWrapper:
             if ex_index < 5:
                 logging.info('*** Example ***')
                 logging.info(f'guid: {example.guid}')
-                logging.info(f'tokens: {" ".join(tokens)}')
-                logging.info(f'input_ids: {" ".join(str(x) for x in input_ids)}')
-                logging.info(f'input_mask: {" ".join(str(x) for x in input_mask)}')
-                logging.info(f'segment_ids: {" ".join(str(x) for x in segment_ids)}')
+                logging.info(f'tokens ({len(tokens)}): {" ".join(tokens)}')
+                logging.info(f'input_ids ({len(input_ids)}): {" ".join(str(x) for x in input_ids)}')
+                logging.info(f'input_mask ({len(input_mask)}): {" ".join(str(x) for x in input_mask)}')
+                logging.info(f'segment_ids ({len(segment_ids)}): {" ".join(str(x) for x in segment_ids)}')
+                logging.info(f'label_ids ({len(label_ids)}): {" ".join(str(x) for x in label_ids)}')
+                logging.info(f'valid_ids ({len(valid)}): {" ".join(str(x) for x in valid)}')
+                logging.info(f'label_mask ({len(label_mask)}): {" ".join(str(x) for x in label_mask)}')
                 # logging.info("label: %s (id = %d)" % (example.labels, label_ids))
 
             feature = InputFeatures(input_ids=input_ids,
