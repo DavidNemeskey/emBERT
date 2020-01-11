@@ -165,7 +165,7 @@ class SentenceWrapper:
         labels = torch.empty([1, min(len(sentence), self.max_seq_length)],
                              dtype=torch.long, device=self.device)
 
-        self.dataset = TensorDataset(
+        self.dataset = (  # TensorDataset(
             torch.tensor(input_ids, dtype=torch.long, device=self.device).unsqueeze(0),
             # TODO don't need
             torch.tensor(input_mask, dtype=torch.long, device=self.device).unsqueeze(0),
