@@ -4,8 +4,10 @@
 """The actual emtsv interface."""
 
 import json
+import logging
 import os
 from pathlib import Path
+import sys
 from typing import Any, Dict
 
 import torch
@@ -43,6 +45,9 @@ class EmBERT:
         Loads the model specified by the configuration from the configuration
         folder. If it doesn't exist, tries to download it.
         """
+        # "Logging" a'la HunTag3
+        print(f'Loading BERT {self.config["model"]} model...',
+              end='', file=sys.stderr, flush=True)
         models_dir = Path(__file__).resolve().parents[1] / 'models'
         try:
             model_dir = models_dir / self.config['model']
@@ -67,6 +72,7 @@ class EmBERT:
             self.wrapper = SentenceWrapper(model_config['labels'],
                                            self.config['max_seq_length'],
                                            tokenizer, device)
+            print('done', file=sys.stderr, flush=True)
         except Exception as e:
             raise ValueError(f'Could not load model {self.config["model"]}: {e}')
 
