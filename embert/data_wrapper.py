@@ -13,6 +13,7 @@ from transformers import PreTrainedTokenizer
 from embert.data_classes import InputExample, InputFeatures
 from embert.processors import DataProcessor, DataSplit
 
+
 class DataWrapper:
     def __init__(self, processor: DataProcessor, split: DataSplit,
                  sampler_cls: Type[Sampler], batch_size: int,
@@ -22,6 +23,9 @@ class DataWrapper:
         self.split = split
         self.tokenizer = tokenizer
         self.device = device
+
+        self.label_map = {label: i for i, label in
+                          enumerate(self.processor.get_labels(), 1)}
 
         examples = processor.get_examples(split)
         features = self.convert_examples_to_features(
@@ -55,9 +59,6 @@ class DataWrapper:
     def convert_examples_to_features(self, examples: List[InputExample],
                                      max_seq_length: int):
         """Loads a data file into a list of :class:`InputFeatures`s."""
-        label_map = {label: i for i, label in
-                     enumerate(self.processor.get_labels(), 1)}
-
         features = []
         for ex_index, example in enumerate(examples):
             tokens = []
@@ -78,7 +79,7 @@ class DataWrapper:
 
             ntokens = ['[CLS]'] + tokens + ['[SEP]']
             segment_ids = [0] * len(ntokens)
-            label_ids = [label_map[l] for l in ['[CLS]'] + labels + ['[SEP]']]
+            label_ids = [self.label_map[l] for l in ['[CLS]'] + labels + ['[SEP]']]
             label_mask = [1] * len(label_ids)
             valid.insert(0, 1)
             valid.append(1)
@@ -106,6 +107,14 @@ class DataWrapper:
             feature.pad(max_seq_length)
             features.append(feature)
         return features
+
+    def get_labels(self):
+        """Returns the label list used in the wrapped dataset."""
+        return self.processor.get_labels()
+
+    def get_label_map(self):
+        """Returns the label map used in the wrapped dataset."""
+        return self.label_map
 
     def __iter__(self):
         for batch in self.dataloader:

@@ -175,8 +175,7 @@ class Trainer:
         self.n_gpu = n_gpu
 
         self.global_step = 0
-        self.label_list = self.train_wrapper.processor.get_labels()
-        self.label_map = {i: label for i, label in enumerate(self.label_list, 1)}
+        self.label_map = self.train_wrapper.get_label_map()
 
         # Set up model on device, optimizer, etc.
         model.to(device)

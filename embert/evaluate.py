@@ -16,9 +16,8 @@ from embert.data_wrapper import DataWrapper
 
 def predict(model: nn.Module, wrapper: DataWrapper) -> List[List[str]]:
     """Predicts the labels for all sentences in _wrapper_."""
-    label_list = wrapper.processor.get_labels()
-    label_map = {i: label for i, label in enumerate(label_list, 1)}
-    sep_id = len(label_list)  # [SEP] is always the last label
+    label_map = wrapper.get_label_map()
+    sep_id = len(label_map)  # [SEP] is always the last label
 
     inputs = []
     y_pred = []
@@ -35,7 +34,7 @@ def predict(model: nn.Module, wrapper: DataWrapper) -> List[List[str]]:
         input_ids = input_ids.detach().cpu().numpy()[:, 1:]
 
         y_pred += [
-            [label_map[label_id] if label_id != 0 else random.choice(label_list)
+            [label_map[label_id] if label_id != 0 else random.choice(label_map.values())
              for label_id in takewhile(lambda l: l != sep_id, seq)]
             for seq in logits
         ]
