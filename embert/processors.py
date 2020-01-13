@@ -7,7 +7,7 @@ from enum import Enum
 import os
 from typing import Callable, List, Tuple
 
-from embert.data_classes import InputExample
+from .data_classes import InputExample
 
 
 class DataSplit(Enum):

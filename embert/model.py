@@ -19,8 +19,10 @@ class TokenClassifier(BertForTokenClassification):
                                     head_mask=None)[0]
         batch_size, max_len, feat_dim = sequence_output.shape
         # TODO: not necessarily CUDA...
-        valid_output = torch.zeros(batch_size, max_len, feat_dim,
-                                   dtype=torch.float32, device='cuda')
+        valid_output = torch.zeros(
+            batch_size, max_len, feat_dim, dtype=torch.float32,
+            device=next(self.parameters()).device
+        )
         for i in range(batch_size):
             jj = -1
             for j in range(max_len):

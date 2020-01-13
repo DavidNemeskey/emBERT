@@ -1,31 +1,57 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Defines the :class:`DataWrapper` class."""
+"""Defines the :class:`DataWrapper` classes."""
 
 import logging
-from typing import List, Type
+import random
+from typing import Generator, List, Tuple, Type
 
 import torch
 from torch.utils.data import DataLoader, Sampler, TensorDataset
 from transformers import PreTrainedTokenizer
 
-from embert.data_classes import InputExample, InputFeatures
-from embert.processors import DataProcessor, DataSplit
+from .data_classes import InputExample, InputFeatures
+from .processors import DataProcessor, DataSplit
 
 
 class DataWrapper:
+    def __init__(self, batch_size: int, max_seq_length: int,
+                 tokenizer: PreTrainedTokenizer, device: torch.device):
+        self.batch_size = batch_size
+        self.max_seq_length = max_seq_length
+        self.tokenizer = tokenizer
+        self.device = device
+
+        self.label_list = self.get_labels()
+
+    def get_labels(self):
+        """Returns the list of labels used in the dataset."""
+        raise NotImplementedError()
+
+    def __iter__(self) -> Generator[Tuple[torch.tensor], None, None]:
+        """Returns all data points in the dataset."""
+        raise NotImplementedError()
+
+    def id_to_label(self, label_id):
+        """
+        Converts _label_id_ to a label. Returns the label that corresponds to
+        an id, or a random label if _label_id_ is 0.
+        """
+        if label_id > 0:
+            return self.label_list[label_id - 1]
+        else:
+            return random.choice(self.label_list)
+
+
+class DatasetWrapper(DataWrapper):
     def __init__(self, processor: DataProcessor, split: DataSplit,
                  sampler_cls: Type[Sampler], batch_size: int,
                  max_seq_length: int, tokenizer: PreTrainedTokenizer,
                  device: torch.device):
         self.processor = processor
         self.split = split
-        self.tokenizer = tokenizer
-        self.device = device
-
-        self.label_map = {label: i for i, label in
-                          enumerate(self.processor.get_labels(), 1)}
+        super().__init__(batch_size, max_seq_length, tokenizer, device)
 
         examples = processor.get_examples(split)
         features = self.convert_examples_to_features(
@@ -112,11 +138,7 @@ class DataWrapper:
         """Returns the label list used in the wrapped dataset."""
         return self.processor.get_labels()
 
-    def get_label_map(self):
-        """Returns the label map used in the wrapped dataset."""
-        return self.label_map
-
-    def __iter__(self):
+    def __iter__(self) -> Generator[Tuple[torch.tensor], None, None]:
         for batch in self.dataloader:
             # Crop tensors to actual length
             actual_seq_length = batch[1].sum(dim=1).max()
@@ -133,17 +155,15 @@ class DataWrapper:
         return len(self.dataloader)
 
 
-class SentenceWrapper:
+class SentenceWrapper(DataWrapper):
     """
     A simple reimplementation of :class:`DataWrapper`. Converts single sentences
     to :class:`InputFeatures` one-by-one; to be used in the emtsv wrapper.
     """
-    def __init__(self, processor: DataProcessor, max_seq_length: int,
+    def __init__(self, label_list: List[str], max_seq_length: int,
                  tokenizer: PreTrainedTokenizer, device: torch.device):
-        self.processor = processor
-        self.max_seq_length = max_seq_length
-        self.tokenizer = tokenizer
-        self.device = device
+        self.label_list = label_list
+        super().__init__(1, max_seq_length, tokenizer, device)
 
         self.dataset = None
 
@@ -187,7 +207,11 @@ class SentenceWrapper:
         )
         return self.dataset
 
-    def __iter__(self):
+    def get_labels(self):
+        """Returns the label list used in the wrapped dataset."""
+        return self.label_list
+
+    def __iter__(self) -> Generator[Tuple[torch.tensor], None, None]:
         yield self.dataset
 
     def __len__(self):

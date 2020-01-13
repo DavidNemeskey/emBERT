@@ -55,6 +55,7 @@ setup(name='embert',
           'scripts/train.py',
       ],
       install_requires=[
+          'pyyaml',
           'requests',
           'seqeval<=0.0.5',
           'torch',

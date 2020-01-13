@@ -28,7 +28,7 @@ from transformers import (AdamW, BertConfig,
 
 from embert.data_format import all_formats, get_format_reader
 from embert.model import TokenClassifier
-from embert.data_wrapper import DataWrapper
+from embert.data_wrapper import DataWrapper, DatasetWrapper
 from embert.processors import all_processors, get_processor, DataSplit
 
 
@@ -175,7 +175,6 @@ class Trainer:
         self.n_gpu = n_gpu
 
         self.global_step = 0
-        self.label_map = self.train_wrapper.get_label_map()
 
         # Set up model on device, optimizer, etc.
         model.to(device)
@@ -289,8 +288,7 @@ class Trainer:
 
 def evaluate(model: nn.Module, wrapper: DataWrapper):
     """Runs a full evaluation loop."""
-    label_list = wrapper.processor.get_labels()
-    label_map = {i: label for i, label in enumerate(label_list, 1)}
+    sep_id = len(wrapper.get_labels())  # [SEP] is always the last label
 
     logging.info(f'***** Running evaluation: {wrapper.split.value} *****')
     logging.info(f'  Num examples = {wrapper.num_examples}')
@@ -319,19 +317,17 @@ def evaluate(model: nn.Module, wrapper: DataWrapper):
             for j, m in enumerate(label):
                 if j == 0:
                     continue
-                elif label_ids[i][j] == len(label_map):
+                elif label_ids[i][j] == sep_id:
                     y_true.append(temp_1)
                     y_pred.append(temp_2)
                     break
                 else:
-                    temp_1.append(label_map[label_ids[i][j]])
+                    temp_1.append(wrapper.id_to_label(label_ids[i][j]))
                     # It can happen, that logits[i][j] is 0, which is not
                     # in label_map. In that case, we return a random label
-                    if logits[i][j] != 0:
-                        temp_2.append(label_map[logits[i][j]])
-                    else:
+                    if logits[i][j] == 0:
                         num_zero_labels += 1
-                        temp_2.append(random.choice(label_list))
+                    temp_2.append(wrapper.id_to_label(logits[i][j]))
 
     if num_zero_labels > 0:
         logging.warning(f'Predicted {num_zero_labels} zero labels!')
@@ -441,12 +437,12 @@ def main():
     try:
         if args.do_train:
             # Create the data wrappers
-            train_wrapper = DataWrapper(
+            train_wrapper = DatasetWrapper(
                 processor, DataSplit.TRAIN,
                 RandomSampler if args.local_rank == -1 else DistributedSampler,
                 train_batch_size, args.max_seq_length, tokenizer, device
             )
-            valid_wrapper = DataWrapper(
+            valid_wrapper = DatasetWrapper(
                 processor, DataSplit.VALID, SequentialSampler, args.eval_batch_size,
                 args.max_seq_length, tokenizer, device
             )
@@ -469,7 +465,7 @@ def main():
                 'bert_model': args.bert_model, 'do_lower': args.do_lower_case,
                 'max_seq_length': args.max_seq_length,
                 'num_labels': num_labels,
-                'label_map': trainer.label_map
+                'labels': train_wrapper.get_labels()
             }
             with open(os.path.join(args.output_dir, 'model_config.json'), 'w') as f:
                 json.dump(model_config, f)
@@ -489,7 +485,7 @@ def main():
 
     # TODO: do it regardless of local_rank
     if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
-        test_wrapper = DataWrapper(
+        test_wrapper = DatasetWrapper(
             processor, DataSplit.TEST, SequentialSampler, args.eval_batch_size,
             args.max_seq_length, tokenizer, device
         )
