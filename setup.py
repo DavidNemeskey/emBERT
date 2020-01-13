@@ -52,7 +52,7 @@ setup(name='embert',
       scripts=[
           'scripts/split_to_sets.py',
           'scripts/tokenization_comparison.py',
-          'scripts/train.py',
+          'scripts/train_embert.py',
       ],
       install_requires=[
           'pyyaml',
