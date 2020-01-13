@@ -1,0 +1,6 @@
+pyyaml
+requests
+seqeval<=0.0.5
+torch
+tqdm
+transformers
