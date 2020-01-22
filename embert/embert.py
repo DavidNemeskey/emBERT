@@ -4,11 +4,11 @@
 """The actual emtsv interface."""
 
 import json
-import logging
 import os
 from pathlib import Path
+import shutil
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import torch
 from transformers import (BertTokenizer)
@@ -16,6 +16,7 @@ import yaml
 
 from .data_wrapper import SentenceWrapper
 from .evaluate import predict
+from .github_download import download_github_dir
 from .model import TokenClassifier
 
 class EmBERT:
@@ -56,16 +57,22 @@ class EmBERT:
 
         if not os.path.isdir(model_dir):
             # TODO: download
-            pass
+            download_github_dir('DavidNemeskey/emBERT-models',
+                                self.config['model'], model_dir)
 
         try:
+            try:
+                tokenizer, self.model = self.load_model_from_disk(model_dir)
+            except:
+                # Could not load model for some reason... re-downloading it
+                shutil.rmtree(model_dir)
+                download_github_dir('DavidNemeskey/emBERT-models',
+                                    self.config['model'], model_dir)
+                tokenizer, self.model = self.load_model_from_disk(model_dir)
+
             cuda = torch.cuda.is_available() and not self.config['no_cuda']
             device = torch.device('cuda' if cuda else 'cpu')
 
-            tokenizer = BertTokenizer.from_pretrained(
-                model_dir, do_lower_case=False,
-                do_basic_tokenize=False)  # In quntoken we trust
-            self.model = TokenClassifier.from_pretrained(model_dir)
             self.model.to(device)
             with open(model_dir / 'model_config.json', 'rb') as inf:
                 model_config = json.load(inf)
@@ -75,6 +82,16 @@ class EmBERT:
             print('done', file=sys.stderr, flush=True)
         except Exception as e:
             raise ValueError(f'Could not load model {self.config["model"]}: {e}')
+
+    def load_model_from_disk(self, model_dir: str) -> Tuple[
+        BertTokenizer, TokenClassifier
+    ]:
+        """Loads the tokenizer and the classifier from _model_dir_."""
+        tokenizer = BertTokenizer.from_pretrained(
+            model_dir, do_lower_case=False,
+            do_basic_tokenize=False)  # In quntoken we trust
+        model = TokenClassifier.from_pretrained(model_dir)
+        return tokenizer, model
 
     def process_sentence(self, sen, field_names):
         self.wrapper.set_sentence([tok[field_names[0]] for tok in sen])
