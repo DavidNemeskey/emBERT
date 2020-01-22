@@ -55,6 +55,8 @@ setup(name='embert',
           'scripts/train_embert.py',
       ],
       install_requires=[
+          'progressbar',
+          'pygithub',
           'pyyaml',
           'requests',
           'seqeval<=0.0.5',

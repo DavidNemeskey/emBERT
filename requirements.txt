@@ -1,3 +1,5 @@
+progressbar
+pygithub
 pyyaml
 requests
 seqeval<=0.0.5
