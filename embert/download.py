@@ -4,7 +4,9 @@
 """Stuff related to model downloading."""
 
 import os
-from urllib.request import urlretrieve
+import re
+from typing import List
+from urllib.request import urlopen, urlretrieve
 
 from github import Github, UnknownObjectException
 from progressbar import ProgressBar
@@ -30,6 +32,30 @@ class ReporthookProgressBar:
             self.pbar.finish()
 
 
+def download_apache_dir(dir_url: str, output_directory: str):
+    """
+    Downloads a directory that has the usual Apache directory listing. Not
+    recursive.
+
+    :param dir_url: the URL of the directory.
+    :param output_directory: the name of the output directory. If it doesn't
+                             exist, it will be created.
+    """
+    trp = re.compile('<tr>(.+?)</tr>', re.I)
+    hrefp = re.compile(r'<a href="([^"]+)"\s*>\1<', re.I)
+    dirp = re.compile(r'alt="\[(?:PARENT)?DIR\]"', re.I)
+
+    html = urlopen(dir_url).read().decode('utf-8')
+    files = []
+    for tr in map(lambda trm: trm.group(1), trp.finditer(html)):
+        if not dirp.search(tr):
+            m = hrefp.search(tr)
+            if m:
+                files.append(m.group(1))
+
+    download_files(files, dir_url, output_directory)
+
+
 def download_github_dir(repository: str, git_directory: str,
                         output_directory: str, branch: str = 'master'):
     """
@@ -39,7 +65,7 @@ def download_github_dir(repository: str, git_directory: str,
                        {user}/{repo} format. It must be public.
     :param git_directory: the name of the directory to download.
     :param output_directory: the name of the output directory. If it doesn't
-                             exist, it is created.
+                             exist, it will be created.
     :param branch: the Git branch to download from.
     """
     g = Github()
@@ -51,16 +77,28 @@ def download_github_dir(repository: str, git_directory: str,
 
     dir_url = f'https://github.com/{repository}/raw/{branch}/{git_directory}'
     try:
-        git_files = repos[0].get_contents(git_directory)
+        git_files = [f.name for f in repos[0].get_contents(git_directory)]
+        download_files(git_files, dir_url, output_directory)
     except UnknownObjectException:
         raise ValueError(f'Directory {git_directory} not found in {repository}')
 
-    if not os.path.isdir(output_directory):
-        os.makedirs(output_directory)
 
-    for git_file in git_files:
-        url = f'{dir_url}/{git_file.name}'
-        print('Downloading ', url)
-        urlretrieve(url, os.path.join(output_directory, git_file.name),
-                    ReporthookProgressBar())
-        print()
+def download_files(files: List[str], dir_url: str, output_directory: str):
+    """
+    Downloads a list of files from a server.
+
+    :param files: the list of file names to download.
+    :param dir_url: the url of the directory that stores the files.
+    :param output_directory: the name of the output directory. If it doesn't
+                             exist, it will be created.
+    """
+    if files:
+        if not os.path.isdir(output_directory):
+            os.makedirs(output_directory)
+
+        for file in files:
+            url = f'{dir_url}/{file}'
+            print('Downloading ', url)
+            urlretrieve(url, os.path.join(output_directory, file),
+                        ReporthookProgressBar())
+            print()

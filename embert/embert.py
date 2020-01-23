@@ -16,7 +16,7 @@ import yaml
 
 from .data_wrapper import SentenceWrapper
 from .evaluate import predict
-from .github_download import download_github_dir
+from .download import download_apache_dir
 from .model import TokenClassifier
 
 class EmBERT:
@@ -55,10 +55,9 @@ class EmBERT:
         except KeyError:
             raise ValueError('Key "model" is missing from the configuration.')
 
+        url_dir = f'http://sandbox.hlt.bme.hu/~ndavid/emBERT/{self.config["model"]}'
         if not os.path.isdir(model_dir):
-            # TODO: download
-            download_github_dir('DavidNemeskey/emBERT-models',
-                                self.config['model'], model_dir)
+            download_apache_dir(url_dir, model_dir)
 
         try:
             try:
@@ -66,8 +65,7 @@ class EmBERT:
             except:
                 # Could not load model for some reason... re-downloading it
                 shutil.rmtree(model_dir)
-                download_github_dir('DavidNemeskey/emBERT-models',
-                                    self.config['model'], model_dir)
+                download_apache_dir(url_dir, model_dir)
                 tokenizer, self.model = self.load_model_from_disk(model_dir)
 
             cuda = torch.cuda.is_available() and not self.config['no_cuda']
