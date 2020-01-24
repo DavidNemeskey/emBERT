@@ -55,7 +55,8 @@ class EmBERT:
         except KeyError:
             raise ValueError('Key "model" is missing from the configuration.')
 
-        url_dir = f'http://sandbox.hlt.bme.hu/~ndavid/emBERT/{self.config["model"]}'
+        url_dir = f'http://sandbox.hlt.bme.hu/~ndavid/emBERT-models/' \
+                  f'{self.config["model"]}'
         if not os.path.isdir(model_dir):
             download_apache_dir(url_dir, model_dir)
 
