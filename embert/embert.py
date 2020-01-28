@@ -11,7 +11,7 @@ import sys
 from typing import Any, Dict, Tuple
 
 import torch
-from transformers import (BertTokenizer)
+from transformers import BertTokenizer
 import yaml
 
 from .data_wrapper import SentenceWrapper
