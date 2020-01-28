@@ -4,9 +4,7 @@
 """The actual emtsv interface."""
 
 import json
-import os
 from pathlib import Path
-import shutil
 import sys
 from typing import Any, Dict, Tuple
 
@@ -16,7 +14,6 @@ import yaml
 
 from .data_wrapper import SentenceWrapper
 from .evaluate import predict
-from .download import download_apache_dir
 from .model import TokenClassifier
 
 class EmBERT:
@@ -33,7 +30,7 @@ class EmBERT:
 
         self.config = {'no_cuda': False, 'max_seq_length': 512}
         self.config.update(self.read_config(task))
-        self.load_model()
+        self._load_model()
 
     def read_config(self, config) -> Dict[str, Any]:
         """Reads the YAML configuration file from the ``configs`` directory."""
@@ -41,10 +38,10 @@ class EmBERT:
         with open(config_dir / f'{config}.yaml') as inf:
             return yaml.load(inf, Loader=yaml.SafeLoader)
 
-    def load_model(self):
+    def _load_model(self):
         """
         Loads the model specified by the configuration from the configuration
-        folder. If it doesn't exist, tries to download it.
+        folder.
         """
         # "Logging" a'la HunTag3
         print(f'Loading BERT {self.config["model"]} model...',
@@ -52,22 +49,16 @@ class EmBERT:
         models_dir = Path(__file__).resolve().parents[1] / 'models'
         try:
             model_dir = models_dir / self.config['model']
+            if not model_dir.is_dir():
+                raise ValueError(
+                    f'Model {self.config["model"]} not found in {models_dir}. '
+                    f'Please make sure you download it via emtsv\'s '
+                    f'download_models.py.')
         except KeyError:
             raise ValueError('Key "model" is missing from the configuration.')
 
-        url_dir = f'http://sandbox.hlt.bme.hu/~ndavid/emBERT-models/' \
-                  f'{self.config["model"]}'
-        if not os.path.isdir(model_dir):
-            download_apache_dir(url_dir, model_dir)
-
         try:
-            try:
-                tokenizer, self.model = self.load_model_from_disk(model_dir)
-            except:
-                # Could not load model for some reason... re-downloading it
-                shutil.rmtree(model_dir)
-                download_apache_dir(url_dir, model_dir)
-                tokenizer, self.model = self.load_model_from_disk(model_dir)
+            tokenizer, self.model = self._load_model_from_disk(str(model_dir))
 
             cuda = torch.cuda.is_available() and not self.config['no_cuda']
             device = torch.device('cuda' if cuda else 'cpu')
@@ -82,7 +73,7 @@ class EmBERT:
         except Exception as e:
             raise ValueError(f'Could not load model {self.config["model"]}: {e}')
 
-    def load_model_from_disk(self, model_dir: str) -> Tuple[
+    def _load_model_from_disk(self, model_dir: str) -> Tuple[
         BertTokenizer, TokenClassifier
     ]:
         """Loads the tokenizer and the classifier from _model_dir_."""

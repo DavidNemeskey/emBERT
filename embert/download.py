@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Stuff related to model downloading."""
+"""
+Stuff related to model downloading. Note that this file is no longer used;
+the functionality implemented here has been moved to emtsv/download_models.py.
+"""
 
 import os
 import re
