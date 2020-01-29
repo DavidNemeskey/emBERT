@@ -1,8 +1,8 @@
 # emBERT
 
-emtsv module for pre-trained Transfomer-based models. It provides tagging models
-based on [Huggingface's `transformers`](https://github.com/huggingface/transformers)
-package.
+[`emtsv`](https://github.com/dlt-rilmta/emtsv) module for pre-trained Transfomer-based
+models. It provides tagging modelsbased on
+[Huggingface's `transformers`](https://github.com/huggingface/transformers) package.
 
 `emBERT` defines the following tools:
 
@@ -14,9 +14,15 @@ package.
 
 (The results in **bold** are state-of-the-art for Hungarian.)
 
-The models are not included in the repository; `emBERT` automatically downloads
-them when needed. Alternatively, the models can be downloaded from
-[here](https://hlt.bme.hu/en/resources/emBERT).
+Due to their size (a little over 700M apiece), the models are stored in a separate
+repository. [emBERT-models](https://github.com/dlt-rilmta/emBERT-models)
+is a submodule of this repository, so if cloned recursively with `git` LFS,
+the models will be downloaded as well:
+```
+git clone --recursive https://github.com/DavidNemeskey/emBERT.git
+```
+
+Alternatively, the models can be obtained via `emtsv`'s `download_models.py` script.
 
 If you use `emBERT` in your work, please cite the following paper
 ([see link for bib](https://hlt.bme.hu/en/publ/embert_2020); Hungarian):
