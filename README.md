@@ -1,7 +1,7 @@
 # emBERT
 
 [`emtsv`](https://github.com/dlt-rilmta/emtsv) module for pre-trained Transfomer-based
-models. It provides tagging modelsbased on
+models. It provides tagging models based on
 [Huggingface's `transformers`](https://github.com/huggingface/transformers) package.
 
 `emBERT` defines the following tools:
