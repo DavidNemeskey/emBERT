@@ -4,12 +4,19 @@
 # I used the following resources to compile the packaging boilerplate:
 # https://python-packaging.readthedocs.io/en/latest/
 # https://packaging.python.org/distributing/#requirements-for-packaging-and-distributing
+import sys
 
 from setuptools import find_packages, setup
 
 def readme():
     with open('README.md') as f:
         return f.read()
+
+# A few things depend on the Python version
+version = '.'.join(map(str, sys.version_info))
+if version < '3.6':
+    raise ValueError('The oldest Python version supported is 3.6.')
+dataclasses_req = ['dataclasses==0.7'] if version < '3.7' else []
 
 
 setup(name='embert',
@@ -54,7 +61,7 @@ setup(name='embert',
           'scripts/tokenization_comparison.py',
           'scripts/train_embert.py',
       ],
-      install_requires=[
+      install_requires=dataclasses_req + [
           'progressbar',
           'pygithub',
           'pyyaml',
