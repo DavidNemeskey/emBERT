@@ -20,7 +20,7 @@ dataclasses_req = ['dataclasses==0.7'] if version < '3.7' else []
 
 
 setup(name='embert',
-      version='1.0.1',
+      version='1.0.2',
       description='A Python package for integrating BERT-based NLP models '
                   'into emtsv. Also provides scripts for training and '
                   'analyzing them.',
