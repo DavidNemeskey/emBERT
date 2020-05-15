@@ -84,7 +84,7 @@ def parse_arguments():
                         help='Total number of training epochs to perform.')
     parser.add_argument("--warmup_proportion", default=0.1, type=float,
                         help='Proportion of training to perform linear '
-                             'learning rate warmup for. E.g., 0.1 = 10% of '
+                             'learning rate warmup for. E.g., 0.1 = 10%% of '
                              'training.')
     parser.add_argument("--weight_decay", default=0.01, type=float,
                         help='Weight decay if we apply some.')
