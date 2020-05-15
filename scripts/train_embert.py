@@ -362,6 +362,8 @@ def main():
         datefmt='%m/%d/%Y %H:%M:%S', level=logging.DEBUG
     )
 
+    logging.info(f'Args: {args}')
+
     # TODO is this right?
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device('cuda' if torch.cuda.is_available() and not args.no_cuda else "cpu")
