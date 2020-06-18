@@ -53,6 +53,8 @@ class DatasetWrapper(DataWrapper):
         self.split = split
         super().__init__(batch_size, max_seq_length, tokenizer, device)
 
+        self.label_map = {label: i for i, label in
+                          enumerate(processor.get_labels(), start=1)}
         examples = processor.get_examples(split)
         features = self.convert_examples_to_features(
             examples, max_seq_length)
