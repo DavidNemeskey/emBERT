@@ -11,7 +11,6 @@ import re
 from typing import List
 from urllib.request import urlopen, urlretrieve
 
-from github import Github, UnknownObjectException
 from progressbar import ProgressBar
 
 
@@ -58,32 +57,37 @@ def download_apache_dir(dir_url: str, output_directory: str):
 
     download_files(files, dir_url, output_directory)
 
+try:
+    from github import Github, UnknownObjectException
 
-def download_github_dir(repository: str, git_directory: str,
-                        output_directory: str, branch: str = 'master'):
-    """
-    Downloads a directory from GitHub.
+    def download_github_dir(repository: str, git_directory: str,
+                            output_directory: str, branch: str = 'master'):
+        """
+        Downloads a directory from GitHub.
 
-    :param repository: the _full_ name of the GitHub repository; i.e. in the
-                       {user}/{repo} format. It must be public.
-    :param git_directory: the name of the directory to download.
-    :param output_directory: the name of the output directory. If it doesn't
-                             exist, it will be created.
-    :param branch: the Git branch to download from.
-    """
-    g = Github()
-    repos = g.search_repositories(repository).get_page(0)
-    if not repos:
-        raise ValueError(f'No such repository found: {repository}')
-    if len(repos) > 1:
-        raise ValueError(f'More than one repositories match to {repository}')
+        :param repository: the _full_ name of the GitHub repository; i.e. in the
+                           {user}/{repo} format. It must be public.
+        :param git_directory: the name of the directory to download.
+        :param output_directory: the name of the output directory. If it doesn't
+                                 exist, it will be created.
+        :param branch: the Git branch to download from.
+        """
+        g = Github()
+        repos = g.search_repositories(repository).get_page(0)
+        if not repos:
+            raise ValueError(f'No such repository found: {repository}')
+        if len(repos) > 1:
+            raise ValueError(f'More than one repositories match to {repository}')
 
-    dir_url = f'https://github.com/{repository}/raw/{branch}/{git_directory}'
-    try:
-        git_files = [f.name for f in repos[0].get_contents(git_directory)]
-        download_files(git_files, dir_url, output_directory)
-    except UnknownObjectException:
-        raise ValueError(f'Directory {git_directory} not found in {repository}')
+        dir_url = f'https://github.com/{repository}/raw/{branch}/{git_directory}'
+        try:
+            git_files = [f.name for f in repos[0].get_contents(git_directory)]
+            download_files(git_files, dir_url, output_directory)
+        except UnknownObjectException:
+            raise ValueError(f'Directory {git_directory} not found in {repository}')
+except ModuleNotFoundError:
+    # We don't really use this function, so who cares
+    pass
 
 
 def download_files(files: List[str], dir_url: str, output_directory: str):
