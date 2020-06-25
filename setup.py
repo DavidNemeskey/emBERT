@@ -20,7 +20,7 @@ dataclasses_req = ['dataclasses==0.7'] if version < '3.7' else []
 
 
 setup(name='embert',
-      version='1.0.3',
+      version='1.0.4',
       description='A Python package for integrating BERT-based NLP models '
                   'into emtsv. Also provides scripts for training and '
                   'analyzing them.',
@@ -67,7 +67,7 @@ setup(name='embert',
           'pyyaml',
           'requests',
           'seqeval<=0.0.5',
-          'torch',
+          'torch<1.5.0',  # torch 1.5 is buggy
           'tqdm',
           'transformers',
       ],

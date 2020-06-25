@@ -4,6 +4,6 @@ pygithub
 pyyaml
 requests
 seqeval<=0.0.5
-torch
+torch<1.5.0
 tqdm
 transformers
