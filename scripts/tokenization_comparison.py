@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Compares the vocabularies of a BERT model and a SentencePiece vocab file.
+Compares the tokenization of a BERT model and a SentencePiece vocab file.
 
 Reproduces the vocabulary comparison in the paper.
 """
@@ -17,11 +17,16 @@ from transformers import BertTokenizer
 def parse_arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input-dir', '-i', required=True,
-                        help='The input directory of tsv files.')
+                        help='A directory of tsv files. The files are '
+                             'tokenized according to both vocabularies and '
+                             'various statistics are collected.')
     parser.add_argument('--model-dir', '-m', required=True,
-                        help='The BERT model directory.')
+                        help='The BERT model directory that contains the '
+                             'vocabulary (file) of the model.')
     parser.add_argument('--vocab-file', '-v', required=True,
-                        help='The Hungarian vocab file.')
+                        help='The standalone vocabulary file (in BERT '
+                             'vocabulary format) to compare the model '
+                             'tokenizer with.')
     return parser.parse_args()
 
 
