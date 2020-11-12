@@ -51,7 +51,8 @@ setup(name='embert',
           # Specify the Python versions you support here. In particular, ensure
           # that you indicate whether you support Python 2, Python 3 or both.
           'Programming Language :: Python :: 3.6',
-          'Programming Language :: Python :: 3.7'
+          'Programming Language :: Python :: 3.7',
+          'Programming Language :: Python :: 3.8'
       ],
       keywords='BERT transformer NER chunking',
       packages=find_packages(exclude=['scripts']),
@@ -69,7 +70,7 @@ setup(name='embert',
           'seqeval<=0.0.5',
           'torch<1.5.0',  # torch 1.5 is buggy
           'tqdm',
-          'transformers',
+          'transformers<3.5',
       ],
       # zip_safe=False,
       use_2to3=False)
