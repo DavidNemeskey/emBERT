@@ -44,7 +44,8 @@ def parse_arguments():
     # Required parameters
     parser.add_argument("--data_dir", required=True,
                         help='The input data dir. Should contain the .tsv '
-                             'files (or other data files) for the task.')
+                             'files (or other data files) for the task, and '
+                             'the label should be in the last column.')
     parser.add_argument("--bert_model", required=True,
                         help='Bert pre-trained model selected in the list: '
                              'bert-base-uncased, bert-large-uncased, '
