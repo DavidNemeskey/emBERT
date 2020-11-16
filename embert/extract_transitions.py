@@ -6,20 +6,13 @@ Extracts the label->label transition matrix for the Viterbi algorithm.
 """
 
 from collections import Counter, defaultdict
-from itertools import tee
 import os
 
 import numpy as np
 
 from embert.data_format import get_format_reader
 from embert.processors import get_processor
-
-
-def pairwise(iterable):
-    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
-    a, b = tee(iterable)
-    next(b, None)
-    return zip(a, b)
+from embert.utils import pairwise
 
 
 def extract_transitions(train_tsv: str):
