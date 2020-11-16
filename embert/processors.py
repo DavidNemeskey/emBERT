@@ -5,7 +5,7 @@
 
 from enum import Enum
 import os
-from typing import Callable, List, Tuple
+from typing import Callable, Iterable, List, Tuple
 
 from .data_classes import InputExample
 
@@ -24,13 +24,26 @@ class DataProcessor:
         self.data_dir = data_dir
         self.reader = format_reader
 
+    def get_file_name(self, split: DataSplit) -> str:
+        """Returns the file name associated with _split_."""
+        return os.path.join(self.data_dir, f'{split.value}.txt')
+
+    def get_file(
+        self, split: DataSplit
+    ) -> Iterable[Tuple[List[str], List[str]]]:
+        """
+        Returns an iterable that enumerates the content of the file associated
+        with _split_.
+        """
+        return self.reader(self.get_file_name(split))
+
     def get_examples(self, split: DataSplit) -> List[InputExample]:
         """
         Gets a collection of `InputExample`s for the selected split.
         This is the generic version for the per-split methods below.
         """
         return self.create_examples(
-            self.reader(os.path.join(self.data_dir, f'{split.value}.txt')),
+            self.get_file(split),
             split.value
         )
 
