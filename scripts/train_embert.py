@@ -399,7 +399,7 @@ def main():
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train:
+    if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.viterbi_only:
         raise ValueError(f'Output directory ({args.output_dir}) '
                          f'already exists and is not empty.')
     if not os.path.exists(args.output_dir):
