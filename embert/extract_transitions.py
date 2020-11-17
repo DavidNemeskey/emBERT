@@ -57,7 +57,7 @@ def main3():
     idx2label = processor.get_labels()
     label2idx = {label: i for i, label in enumerate(idx2label)
                  if not label.startswith('[')}
-    init_stats, transitions = extract_transitions2(processor)
+    init_stats, transitions = extract_transitions3(processor)
     print('INIT:\n')
     init_norm = init_stats / sum(init_stats)
     for idx, v in enumerate(init_stats):
