@@ -4,6 +4,7 @@
 """The actual emtsv interface."""
 
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any, Dict, Tuple
@@ -13,9 +14,10 @@ from transformers import BertTokenizer
 import yaml
 
 from .data_wrapper import SentenceWrapper
+from .extract_transitions import load_viterbi
 from .evaluate import predict
 from .model import TokenClassifier
-from .extract_transitions import load_viterbi
+from .viterbi import ReverseViterbi
 
 class EmBERT:
     def __init__(self, task='ner', source_fields=None, target_fields=None):
