@@ -11,7 +11,7 @@ import os
 import numpy as np
 
 from embert.data_format import get_format_reader
-from embert.processors import get_processor
+from embert.processors import DataSplit, get_processor
 from embert.utils import pairwise
 
 
@@ -43,7 +43,7 @@ def extract_transitions3(processor):
                  if not label.startswith('[')}
     init_stats = np.zeros(len(label_map), dtype=float)
     transitions = np.zeros((len(label_map), len(label_map)), dtype=float)
-    for _, labels in processor.reader(os.path.join(processor.data_dir, 'train.txt')):
+    for _, labels in processor.get_file(DataSplit.TRAIN):
         init_stats[label_map[labels[0]]] += 1
         for l1, l2 in pairwise(labels):
             transitions[label_map[l1], label_map[l2]] += 1
@@ -55,8 +55,6 @@ def main3():
     processor_cls = get_processor(sys.argv[2])
     processor = processor_cls(sys.argv[1], get_format_reader('tsv'))
     idx2label = processor.get_labels()
-    label2idx = {label: i for i, label in enumerate(idx2label)
-                 if not label.startswith('[')}
     init_stats, transitions = extract_transitions3(processor)
     print('INIT:\n')
     init_norm = init_stats / sum(init_stats)
