@@ -4,6 +4,10 @@
 """
 Trains a token classification model. Original code taken from
 https://github.com/kamalkraj/BERT-NER.
+
+The script can both train and evaluate a token classifier. A "reverse"
+Viterbi model is also trained on the class transitions in the data to
+prevent the emission of illegal tag sequences.
 """
 
 import argparse
@@ -47,13 +51,13 @@ def parse_arguments():
                         help='The input data dir. Should contain the .tsv '
                              'files (or other data files) for the task, and '
                              'the label should be in the last column.')
-    parser.add_argument("--bert_model", required=True,
-                        help='Bert pre-trained model selected in the list: '
-                             'bert-base-uncased, bert-large-uncased, '
-                             'bert-base-cased, bert-large-cased, '
-                             'bert-base-multilingual-uncased, '
-                             'bert-base-multilingual-cased, '
-                             'bert-base-chinese.')
+    parser.add_argument("--bert_model",
+                        help='The pre-trained BERT model to base the '
+                             'classifier on. Can be a directory with a '
+                             'PyTorch checkpoint or any named Huggingface '
+                             'model. The recommended model is '
+                             'SZTAKI-HLT/hubert-base-cc. Required for full '
+                             'training, but not for Viterbi and evaluation.')
     parser.add_argument('--task_name', required=True, choices=all_processors(),
                         help='The name of the task to train.')
     parser.add_argument('--data_format', required=True, choices=all_formats(),
@@ -128,6 +132,8 @@ def parse_arguments():
     if args.viterbi_only and not args.do_train:
         parser.error('--viterbi_only is only valid in conjuction with '
                      '--do_train.')
+    if args.do_train and not args.bert_model and not args.viterbi_only:
+        parser.error('--bert_model is required for training.')
     if args.gradient_accumulation_steps < 1:
         parser.error('--gradient_accumulation_steps should be >= 1')
 
@@ -373,6 +379,17 @@ def main():
 
     logging.info(f'Args: {args}')
 
+    format_reader = get_format_reader(args.data_format)
+    processor = get_processor(args.task_name)(args.data_dir, format_reader)
+
+    if args.do_train:
+        save_viterbi(os.path.join(args.output_dir, 'viterbi.npz'),
+                     *extract_transitions(processor))
+        logging.info('Viterbi model trained.')
+
+        if args.viterbi_only:
+            sys.exit(0)
+
     # TODO is this right?
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device('cuda' if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -405,8 +422,6 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    format_reader = get_format_reader(args.data_format)
-    processor = get_processor(args.task_name)(args.data_dir, format_reader)
     num_labels = len(processor.get_labels()) + 1
 
     tokenizer = BertTokenizer.from_pretrained(
@@ -416,19 +431,14 @@ def main():
     train_examples = None
     num_train_optimization_steps = 0
     if args.do_train:
-        save_viterbi(os.path.join(args.output_dir, 'viterbi.npz'),
-                     *extract_transitions(processor))
-        logging.info('Viterbi model trained.')
-
-        if not args.viterbi_only:
-            train_examples = processor.get_train_examples()
-            # TODO: understand train_batch_size and clean this up
-            num_train_optimization_steps = args.num_train_epochs * int(
-                len(train_examples) / train_batch_size /
-                args.gradient_accumulation_steps
-            )
-            if args.local_rank != -1:
-                num_train_optimization_steps //= torch.distributed.get_world_size()
+        train_examples = processor.get_train_examples()
+        # TODO: understand train_batch_size and clean this up
+        num_train_optimization_steps = args.num_train_epochs * int(
+            len(train_examples) / train_batch_size /
+            args.gradient_accumulation_steps
+        )
+        if args.local_rank != -1:
+            num_train_optimization_steps //= torch.distributed.get_world_size()
 
     # TODO understand distributed execution
     # Make sure only the first process in distributed training will
