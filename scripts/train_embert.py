@@ -27,6 +27,7 @@ from transformers import (AdamW, BertConfig,
                           BertTokenizer, get_linear_schedule_with_warmup)
 
 from embert.data_format import all_formats, get_format_reader
+from embert.extract_transitions import extract_transitions, save_viterbi
 from embert.model import TokenClassifier
 from embert.data_wrapper import DataWrapper, DatasetWrapper
 from embert.processors import all_processors, get_processor, DataSplit
@@ -73,6 +74,10 @@ def parse_arguments():
                         help='Whether to run training.')
     parser.add_argument("--do_eval", action='store_true',
                         help='Whether to run eval on the test set.')
+    parser.add_argument("--viterbi_only", action='store_true',
+                        help='Only valid in conjunction with --do_train. Do '
+                             'not train the token classifier, only the Viterbi '
+                             'decoder. Useful if the former already exists.')
     parser.add_argument("--do_lower_case", action='store_true',
                         help='Set this flag if you are using an uncased model.')
     parser.add_argument("--train_batch_size", default=32, type=int,
@@ -120,6 +125,9 @@ def parse_arguments():
 
     if not args.do_train and not args.do_eval:
         parser.error('At least one of `do_train` or `do_eval` must be True.')
+    if args.viterbi_only and not args.do_train:
+        parser.error('--viterbi_only is only valid in conjuction with '
+                     '--do_train.')
     if args.gradient_accumulation_steps < 1:
         parser.error('--gradient_accumulation_steps should be >= 1')
 
@@ -230,7 +238,7 @@ class Trainer:
             )
 
     def train(self):
-        logging.info(f'***** Running training *****')
+        logging.info('***** Running training *****')
         logging.info(f'  Num examples = {self.train_wrapper.num_examples}')
         logging.info(f'  Batch size = {self.train_wrapper.batch_size}')
         logging.info(f'  Num steps = {self.num_train_optimization_steps}')
@@ -408,14 +416,19 @@ def main():
     train_examples = None
     num_train_optimization_steps = 0
     if args.do_train:
-        train_examples = processor.get_train_examples()
-        # TODO: understand train_batch_size and clean this up
-        num_train_optimization_steps = args.num_train_epochs * int(
-            len(train_examples) / train_batch_size /
-            args.gradient_accumulation_steps
-        )
-        if args.local_rank != -1:
-            num_train_optimization_steps //= torch.distributed.get_world_size()
+        save_viterbi(os.path.join(args.output_dir, 'viterbi.npz'),
+                     *extract_transitions(processor))
+        logging.info('Viterbi model trained.')
+
+        if not args.viterbi_only:
+            train_examples = processor.get_train_examples()
+            # TODO: understand train_batch_size and clean this up
+            num_train_optimization_steps = args.num_train_epochs * int(
+                len(train_examples) / train_batch_size /
+                args.gradient_accumulation_steps
+            )
+            if args.local_rank != -1:
+                num_train_optimization_steps //= torch.distributed.get_world_size()
 
     # TODO understand distributed execution
     # Make sure only the first process in distributed training will
@@ -438,7 +451,7 @@ def main():
         torch.distributed.barrier()
 
     try:
-        if args.do_train:
+        if args.do_train and not args.viterbi_only:
             # Create the data wrappers
             train_wrapper = DatasetWrapper(
                 processor, DataSplit.TRAIN,

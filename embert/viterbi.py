@@ -94,48 +94,6 @@ class ReverseViterbi(Viterbi):
                                   list(range(state_probs.shape[1])))
 
 
-def viterbi(data, output):
-    t1 = np.zeros((len(data.init), len(output)), dtype=float)
-    t2 = np.zeros(t1.shape, dtype=np.uint16)
-    t1[:, 0] = data.init + data.emission[:, output[0]]
-    max_idx1 = np.arange(len(data.trans))
-    for idx in range(1, len(output)):
-        curr = data.trans + t1[:, idx - 1]
-        max_idx2 = np.argmax(curr, axis=1)
-        maxs = curr[max_idx1, max_idx2]
-        t1[:, idx] = maxs + data.emission[:, output[idx]]
-        t2[:, idx] = max_idx2
-
-    states = [0] * len(output)
-    states[-1] = np.argmax(t1[:, -1], axis=0)
-    for i in range(len(states) - 2, -1, -1):
-        states[i] = t2[:, i + 1][states[i + 1]]
-    return states
-
-
-def reverse_viterbi(data, output_probs):
-    """
-    A reverse Viterbi where there are no emission probabilities and a
-    p(state|emission) distribution at each step. # noqa
-    """
-    t1 = np.zeros((len(data.init), output_probs.shape[1]), dtype=float)
-    t2 = np.zeros_like(t1, dtype=np.uint16)
-    t1[:, 0] = data.init + output_probs[:, 0]
-    max_idx1 = np.arange(len(data.trans))
-    for idx in range(1, output_probs.shape[1]):
-        curr = data.trans + t1[:, idx - 1]
-        max_idx2 = np.argmax(curr, axis=1)
-        maxs = curr[max_idx1, max_idx2]
-        t1[:, idx] = maxs + output_probs[:, idx]
-        t2[:, idx] = max_idx2
-
-    states = [0] * output_probs.shape[1]
-    states[-1] = np.argmax(t1[:, -1], axis=0)
-    for i in range(len(states) - 2, -1, -1):
-        states[i] = t2[:, i + 1][states[i + 1]]
-    return states
-
-
 if __name__ == '__main__':
     toy = Viterbi([0.5, 0.5],
                   [[0.5, 0.5], [0.4, 0.6]],
