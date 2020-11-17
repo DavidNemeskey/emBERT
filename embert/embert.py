@@ -79,8 +79,11 @@ class EmBERT:
         try:
             viterbi_file = model_dir / 'viterbi.npz'
             if os.path.isfile(viterbi_file):
+                print(f'Loading the Viterbi model for {self.config["model"]}...',
+                      end='', file=sys.stderr, flush=True)
                 init_stats, transitions = load_viterbi(viterbi_file)
                 self.viterbi = ReverseViterbi(init_stats, transitions)
+                print('done', file=sys.stderr, flush=True)
             else:
                 self.viterbi = None
         except Exception as e:
