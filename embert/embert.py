@@ -15,6 +15,7 @@ import yaml
 from .data_wrapper import SentenceWrapper
 from .evaluate import predict
 from .model import TokenClassifier
+from .extract_transitions import load_viterbi
 
 class EmBERT:
     def __init__(self, task='ner', source_fields=None, target_fields=None):
@@ -72,6 +73,17 @@ class EmBERT:
             print('done', file=sys.stderr, flush=True)
         except Exception as e:
             raise ValueError(f'Could not load model {self.config["model"]}: {e}')
+
+        try:
+            viterbi_file = model_dir / 'viterbi.npz'
+            if os.path.isfile(viterbi_file):
+                init_stats, transitions = load_viterbi(viterbi_file)
+                self.viterbi = ReverseViterbi(init_stats, transitions)
+            else:
+                self.viterbi = None
+        except Exception as e:
+            raise ValueError('Could not load the Viterbi model for '
+                             f'{self.config["model"]}: {e}')
 
     def _load_model_from_disk(self, model_dir: str) -> Tuple[
         BertTokenizer, TokenClassifier
