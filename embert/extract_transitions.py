@@ -5,6 +5,8 @@
 Extracts the label->label transition matrix for the Viterbi algorithm.
 """
 
+from typing import List
+
 import numpy as np
 
 from embert.data_format import get_format_reader
@@ -28,13 +30,12 @@ def extract_transitions(processor):
     return init_norm, trans_norm
 
 
-def default_transitions(processor):
+def default_transitions(labels: List[str]):
     """
     Generates default transitions from a BIO (the BII variety) or BIOES/1
     label set. All valid transitions from a state have uniform probabilities,
     and invalid transitions have 0.
     """
-    labels = processor.get_labels()
     label_map = {label: i for i, label in enumerate(labels)
                  if not label.startswith('[')}
     l_bs = {label for label in labels if label.startswith('B-')}

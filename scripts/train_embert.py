@@ -5,9 +5,10 @@
 Trains a token classification model. Original code taken from
 https://github.com/kamalkraj/BERT-NER.
 
-The script can both train and evaluate a token classifier. A "reverse"
-Viterbi model is also trained on the class transitions in the data to
-prevent the emission of illegal tag sequences.
+The script can both train and evaluate a token classifier. In production, a
+"reverse" Viterbi model is also applied to the result to prevent the emission
+of illegal tag sequences; however, the evaluation in this script does not
+make use of this state transition model.
 """
 
 import argparse
@@ -31,7 +32,6 @@ from transformers import (AdamW, BertConfig,
                           BertTokenizer, get_linear_schedule_with_warmup)
 
 from embert.data_format import all_formats, get_format_reader
-from embert.extract_transitions import default_transitions, save_viterbi
 from embert.model import TokenClassifier
 from embert.data_wrapper import DataWrapper, DatasetWrapper
 from embert.processors import all_processors, get_processor, DataSplit
@@ -56,8 +56,8 @@ def parse_arguments():
                              'classifier on. Can be a directory with a '
                              'PyTorch checkpoint or any named Huggingface '
                              'model. The recommended model is '
-                             'SZTAKI-HLT/hubert-base-cc. Required for full '
-                             'training, but not for Viterbi and evaluation.')
+                             'SZTAKI-HLT/hubert-base-cc. Required for '
+                             'training, but not for evaluation.')
     parser.add_argument('--task_name', required=True, choices=all_processors(),
                         help='The name of the task to train.')
     parser.add_argument('--data_format', required=True, choices=all_formats(),
@@ -78,10 +78,6 @@ def parse_arguments():
                         help='Whether to run training.')
     parser.add_argument("--do_eval", action='store_true',
                         help='Whether to run eval on the test set.')
-    parser.add_argument("--viterbi_only", action='store_true',
-                        help='Only valid in conjunction with --do_train. Do '
-                             'not train the token classifier, only the Viterbi '
-                             'decoder. Useful if the former already exists.')
     parser.add_argument("--do_lower_case", action='store_true',
                         help='Set this flag if you are using an uncased model.')
     parser.add_argument("--train_batch_size", default=32, type=int,
@@ -129,10 +125,7 @@ def parse_arguments():
 
     if not args.do_train and not args.do_eval:
         parser.error('At least one of `do_train` or `do_eval` must be True.')
-    if args.viterbi_only and not args.do_train:
-        parser.error('--viterbi_only is only valid in conjuction with '
-                     '--do_train.')
-    if args.do_train and not args.bert_model and not args.viterbi_only:
+    if args.do_train and not args.bert_model:
         parser.error('--bert_model is required for training.')
     if args.gradient_accumulation_steps < 1:
         parser.error('--gradient_accumulation_steps should be >= 1')
@@ -382,14 +375,6 @@ def main():
     format_reader = get_format_reader(args.data_format)
     processor = get_processor(args.task_name)(args.data_dir, format_reader)
 
-    if args.do_train:
-        save_viterbi(os.path.join(args.output_dir, 'viterbi.npz'),
-                     *default_transitions(processor))
-        logging.info('Viterbi model trained.')
-
-        if args.viterbi_only:
-            sys.exit(0)
-
     # TODO is this right?
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device('cuda' if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -416,7 +401,7 @@ def main():
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.viterbi_only:
+    if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train:
         raise ValueError(f'Output directory ({args.output_dir}) '
                          f'already exists and is not empty.')
     if not os.path.exists(args.output_dir):
@@ -461,7 +446,7 @@ def main():
         torch.distributed.barrier()
 
     try:
-        if args.do_train and not args.viterbi_only:
+        if args.do_train:
             # Create the data wrappers
             train_wrapper = DatasetWrapper(
                 processor, DataSplit.TRAIN,

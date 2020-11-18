@@ -4,7 +4,6 @@
 """The actual emtsv interface."""
 
 import json
-import os
 from pathlib import Path
 import sys
 from typing import Any, Dict, Tuple
@@ -14,7 +13,7 @@ from transformers import BertTokenizer
 import yaml
 
 from .data_wrapper import SentenceWrapper
-from .extract_transitions import load_viterbi
+from .extract_transitions import default_transitions
 from .evaluate import predict
 from .model import TokenClassifier
 from .viterbi import ReverseViterbi
@@ -76,19 +75,8 @@ class EmBERT:
         except Exception as e:
             raise ValueError(f'Could not load model {self.config["model"]}: {e}')
 
-        try:
-            viterbi_file = model_dir / 'viterbi.npz'
-            if os.path.isfile(viterbi_file):
-                print(f'Loading the Viterbi model for {self.config["model"]}...',
-                      end='', file=sys.stderr, flush=True)
-                init_stats, transitions = load_viterbi(viterbi_file)
-                self.viterbi = ReverseViterbi(init_stats, transitions)
-                print('done', file=sys.stderr, flush=True)
-            else:
-                self.viterbi = None
-        except Exception as e:
-            raise ValueError('Could not load the Viterbi model for '
-                             f'{self.config["model"]}: {e}')
+        init_stats, transitions = default_transitions(self.wrapper.get_labels())
+        self.viterbi = ReverseViterbi(init_stats, transitions)
 
     def _load_model_from_disk(self, model_dir: str) -> Tuple[
         BertTokenizer, TokenClassifier
