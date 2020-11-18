@@ -34,13 +34,10 @@ def log_softmax(
         with torch.no_grad():
             logits = model(input_ids, segment_ids, input_mask, labels=None,
                            valid_ids=valid_ids, attention_mask_label=l_mask)[0]
-            print('logits1', logits.shape, logits, sep='\n')
         log_probs = F.log_softmax(logits, dim=2)
         # Jumping past [CLS], the first token
         # TODO make it more flexible, e.g. skip all "admin" tokens
         log_probs = log_probs.detach().cpu().numpy()[:, 1:]
-        print('log_probs', log_probs.shape, log_probs, np.exp(log_probs),
-              np.exp(log_probs).sum(axis=2), sep='\n')
         yield input_ids, log_probs
 
 

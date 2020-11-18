@@ -67,8 +67,6 @@ class Viterbi:
             t1[:, idx] = maxs + emission[:, observations[idx]]
             t2[:, idx] = max_idx2
 
-        print('t1', t1, sep='\n')
-        print('t2', t2, sep='\n')
         states = [0] * len(observations)
         states[-1] = np.argmax(t1[:, -1], axis=0)
         for i in range(len(states) - 2, -1, -1):
