@@ -102,7 +102,7 @@ class EmBERT:
 
     def process_sentence(self, sen, field_names):
         self.wrapper.set_sentence([tok[field_names[0]] for tok in sen])
-        classes = predict(self.model, self.wrapper)[0]
+        classes = predict(self.model, self.wrapper, self.viterbi)[0]
         for tok, cls in zip(sen, classes):
             tok.append(cls)
         return sen
