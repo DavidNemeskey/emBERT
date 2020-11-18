@@ -44,18 +44,20 @@ def default_transitions(processor):
     l_es = {label for label in labels if label.startswith('E-')}
     l_o = {'O'}
 
+    l_start = l_bs | l_1s | l_o
+
     if len(l_bs) != len(l_is):
         raise ValueError('Number of B- and I- labels do not match.')
     if len(l_es) and len(l_es) != len(l_is):
         raise ValueError('Number of I- and E- labels do not match.')
 
-    init_stats = np.array(len(label_map), dtype=float)
-    for label in l_bs | l_o:
+    init_stats = np.zeros(len(label_map), dtype=float)
+    for label in l_start:
         init_stats[label_map[label]] = 1
 
-    transitions = np.array((len(label_map), len(label_map)), dtype=float)
+    transitions = np.zeros((len(label_map), len(label_map)), dtype=float)
     for l1 in l_o:
-        for l2 in l_bs | l_1s | l_o:
+        for l2 in l_start:
             transitions[label_map[l1], label_map[l2]] = 1
     for l1 in l_bs:
         for l2 in l_is | l_es:
@@ -69,15 +71,15 @@ def default_transitions(processor):
                 if l1[1:] == l2[1:]:
                     transitions[label_map[l1], label_map[l2]] = 1
         for l1 in l_es:
-            for l2 in l_bs | l_1s | l_o:
+            for l2 in l_start:
                 transitions[label_map[l1], label_map[l2]] = 1
     else:
         for l1 in l_is:
-            for l2 in l_bs | l_o:
+            for l2 in l_start:
                 transitions[label_map[l1], label_map[l2]] = 1
     if l_1s:
         for l1 in l_1s:
-            for l2 in l_bs | l_1s | l_o:
+            for l2 in l_start:
                 transitions[label_map[l1], label_map[l2]] = 1
 
     init_norm = init_stats / init_stats.sum()
@@ -100,7 +102,7 @@ def main():
     processor_cls = get_processor(sys.argv[2])
     processor = processor_cls(sys.argv[1], get_format_reader('tsv'))
     idx2label = processor.get_labels()
-    init_stats, transitions = extract_transitions(processor)
+    init_stats, transitions = default_transitions(processor)
     print('INIT:\n')
     init_norm = init_stats / sum(init_stats)
     for idx, v in enumerate(init_stats):
