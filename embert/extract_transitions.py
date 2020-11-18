@@ -23,7 +23,7 @@ def extract_transitions(processor):
         for l1, l2 in pairwise(labels):
             transitions[label_map[l1], label_map[l2]] += 1
     init_norm = init_stats / sum(init_stats)
-    trans_norm = transitions / transitions.sum(axis=1)
+    trans_norm = transitions / transitions.sum(axis=1)[:, np.newaxis]
 
     return init_norm, trans_norm
 
