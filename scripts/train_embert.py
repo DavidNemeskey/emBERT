@@ -31,7 +31,7 @@ from transformers import (AdamW, BertConfig,
                           BertTokenizer, get_linear_schedule_with_warmup)
 
 from embert.data_format import all_formats, get_format_reader
-from embert.extract_transitions import extract_transitions, save_viterbi
+from embert.extract_transitions import default_transitions, save_viterbi
 from embert.model import TokenClassifier
 from embert.data_wrapper import DataWrapper, DatasetWrapper
 from embert.processors import all_processors, get_processor, DataSplit
@@ -384,7 +384,7 @@ def main():
 
     if args.do_train:
         save_viterbi(os.path.join(args.output_dir, 'viterbi.npz'),
-                     *extract_transitions(processor))
+                     *default_transitions(processor))
         logging.info('Viterbi model trained.')
 
         if args.viterbi_only:

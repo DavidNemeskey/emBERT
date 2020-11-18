@@ -94,22 +94,6 @@ class ReverseViterbi(Viterbi):
                                   list(range(state_probs.shape[1])))
 
 
-def generate_viterbi(labels):
-    label_map = {label: i for i, label in enumerate(labels)
-                 if not label.startswith('[')}
-    l_bs = {label for label in labels if label.startswith('B-')}
-    l_1s = {label for label in labels
-            if label.startswith('1-') or label.startswith('S-')}
-    l_is = {label for label in labels if label.startswith('I-')}
-    l_es = {label for label in labels if label.startswith('E-')}
-    l_o = {'O'}
-
-    init_stats = np.array(len(label_map), dtype=float)
-    for label in l_bs | l_o:
-        init_stats[label_map[label]] = 1
-    init_stats /= init_stats.sum()
-
-
 if __name__ == '__main__':
     toy = Viterbi([0.5, 0.5],
                   [[0.5, 0.5], [0.4, 0.6]],

@@ -28,6 +28,63 @@ def extract_transitions(processor):
     return init_norm, trans_norm
 
 
+def default_transitions(processor):
+    """
+    Generates default transitions from a BIO (the BII variety) or BIOES/1
+    label set. All valid transitions from a state have uniform probabilities,
+    and invalid transitions have 0.
+    """
+    labels = processor.get_labels()
+    label_map = {label: i for i, label in enumerate(labels)
+                 if not label.startswith('[')}
+    l_bs = {label for label in labels if label.startswith('B-')}
+    l_1s = {label for label in labels
+            if label.startswith('1-') or label.startswith('S-')}
+    l_is = {label for label in labels if label.startswith('I-')}
+    l_es = {label for label in labels if label.startswith('E-')}
+    l_o = {'O'}
+
+    if len(l_bs) != len(l_is):
+        raise ValueError('Number of B- and I- labels do not match.')
+    if len(l_es) and len(l_es) != len(l_is):
+        raise ValueError('Number of I- and E- labels do not match.')
+
+    init_stats = np.array(len(label_map), dtype=float)
+    for label in l_bs | l_o:
+        init_stats[label_map[label]] = 1
+
+    transitions = np.array((len(label_map), len(label_map)), dtype=float)
+    for l1 in l_o:
+        for l2 in l_bs | l_1s | l_o:
+            transitions[label_map[l1], label_map[l2]] = 1
+    for l1 in l_bs:
+        for l2 in l_is | l_es:
+            if l1[1:] == l2[1:]:
+                transitions[label_map[l1], label_map[l2]] = 1
+    for l1 in l_is:
+        transitions[label_map[l1], label_map[l1]] = 1
+    if l_es:
+        for l1 in l_is:
+            for l2 in l_es:
+                if l1[1:] == l2[1:]:
+                    transitions[label_map[l1], label_map[l2]] = 1
+        for l1 in l_es:
+            for l2 in l_bs | l_1s | l_o:
+                transitions[label_map[l1], label_map[l2]] = 1
+    else:
+        for l1 in l_is:
+            for l2 in l_bs | l_o:
+                transitions[label_map[l1], label_map[l2]] = 1
+    if l_1s:
+        for l1 in l_1s:
+            for l2 in l_bs | l_1s | l_o:
+                transitions[label_map[l1], label_map[l2]] = 1
+
+    init_norm = init_stats / init_stats.sum()
+    trans_norm = transitions / transitions.sum(axis=1)[:, np.newaxis]
+    return init_norm, trans_norm
+
+
 def save_viterbi(viterbi_file, init_stats, transitions):
     np.savez_compressed(viterbi_file,
                         init_stats=init_stats, transitions=transitions)
