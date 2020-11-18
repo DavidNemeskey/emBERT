@@ -22,7 +22,10 @@ def extract_transitions(processor):
         init_stats[label_map[labels[0]]] += 1
         for l1, l2 in pairwise(labels):
             transitions[label_map[l1], label_map[l2]] += 1
-    return init_stats, transitions
+    init_norm = init_stats / sum(init_stats)
+    trans_norm = transitions / transitions.sum(axis=1)
+
+    return init_norm, trans_norm
 
 
 def save_viterbi(viterbi_file, init_stats, transitions):
