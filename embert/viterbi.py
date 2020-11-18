@@ -9,7 +9,7 @@ import numpy as np
 class Viterbi:
     """Implements the Viterbi algorithm."""
     def __init__(self, init: List[float], trans: List[List[float]],
-                 emission: List[List[float]] = None):
+                 emission: List[List[float]] = None, logp: bool = False):
         """
         Initializes the basic probabilities.
 
@@ -20,11 +20,16 @@ class Viterbi:
         :param trans: Transition probabilities: ``trans[i, j] = P(s_j|s_i)``.
         :param emission: The emission probabilities:
                          ``emission[i, j] = P(w_j|s_i)``.
+        :param logp: if ``True``, the arrays above already contain logarithmic
+                     probabilities, so no conversion takes place; otherwise,
+                     the arrays are presumed to contain straight-up
+                     probabilities, which are then converted to logprobs.
         """
-        self.init = np.log2(init, dtype=float)
+        fn = np.array if logp else np.log
+        self.init = fn(init, dtype=float)
         # Trans is transposed, as that's how we use it
-        self.trans = np.log2(trans, dtype=float).T
-        self.emission = np.log2(emission, dtype=float) if emission else None
+        self.trans = fn(trans, dtype=float).T
+        self.emission = fn(emission, dtype=float) if emission else None
 
     def __call__(self, observations: Sequence[int]) -> List[int]:
         """
@@ -34,6 +39,10 @@ class Viterbi:
         :return: the most probable state (integer) sequence.
         """
         return self.viterbi_inner(self.emission, observations)
+
+    def num_states(self) -> int:
+        """Returns the number of hidden states."""
+        return len(self.init)
 
     def viterbi_inner(self, emission, observations) -> List[int]:
         """
@@ -58,6 +67,8 @@ class Viterbi:
             t1[:, idx] = maxs + emission[:, observations[idx]]
             t2[:, idx] = max_idx2
 
+        print('t1', t1, sep='\n')
+        print('t2', t2, sep='\n')
         states = [0] * len(observations)
         states[-1] = np.argmax(t1[:, -1], axis=0)
         for i in range(len(states) - 2, -1, -1):
@@ -77,20 +88,27 @@ class ReverseViterbi(Viterbi):
     not sound, but should probably work -- if for nothing else, at least to
     rule out impossible tag sequences in token classification tasks.
     """
-    def __init__(self, init, trans):
+    def __init__(self, init, trans, logp: bool = False):
         """Same as with the regular :class:`Viterbi`, only with no emissions."""
-        super().__init__(init, trans)
+        super().__init__(init, trans, logp=logp)
 
-    def __call__(self, state_probs: List[List[float]]) -> List[int]:
+    def __call__(
+        self, state_probs: List[List[float]], logp: bool = False
+    ) -> List[int]:
         """
         Runs the algorithm with the specified per-time-step hidden state
         probabilities.
 
         :param state_probs: the hidden state probabilities:
                             ``state_probs[i, j] == P_j(s_i).``
+        :param logp: if ``True``, _state_probs_ already contains logarithmic
+                     probabilities, so no conversion takes place; otherwise,
+                     it is presumed to contain straight-up
+                     probabilities, which are then converted to logprobs.
         :return: the most probable state (integer) sequence.
         """
-        return self.viterbi_inner(np.log2(state_probs),
+        fn = np.array if logp else np.log
+        return self.viterbi_inner(fn(state_probs),
                                   list(range(state_probs.shape[1])))
 
 
