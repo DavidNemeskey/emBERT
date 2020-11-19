@@ -14,7 +14,7 @@ import yaml
 
 from .data_wrapper import SentenceWrapper
 from .extract_transitions import default_transitions
-# from .evaluate import predict
+from .evaluate import Evaluator
 from .model import TokenClassifier
 from .viterbi import ReverseViterbi
 
@@ -33,6 +33,7 @@ class EmBERT:
         self.config = {'no_cuda': False, 'max_seq_length': 512}
         self.config.update(self.read_config(task))
         self._load_model()
+        self.evaluator = Evaluator(self.model, self.wrapper, self.viterbi)
 
     def read_config(self, config) -> Dict[str, Any]:
         """Reads the YAML configuration file from the ``configs`` directory."""
@@ -90,9 +91,10 @@ class EmBERT:
 
     def process_sentence(self, sen, field_names):
         self.wrapper.set_sentence([tok[field_names[0]] for tok in sen])
-        classes = predict(self.model, self.wrapper, self.viterbi)[0]
+        classes = self.evaluator.predict().y_pred[0]
         for tok, cls in zip(sen, classes):
             tok.append(cls)
+        print(f'returning {sen}')
         return sen
 
     @staticmethod
