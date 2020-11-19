@@ -9,13 +9,22 @@ from typing import List
 
 import numpy as np
 
-from embert.data_format import get_format_reader
-from embert.processors import DataSplit, get_processor
+# from embert.data_format import get_format_reader
+from embert.processors import DataSplit
+# from embert.processors import DataSplit, get_processor
 from embert.utils import pairwise
 
 
 def extract_transitions(processor):
-    """Extracts the label->label transition matrix."""
+    """
+    Extracts the label->label transition matrix for the Viterbi algorithm.
+
+    .. note::
+    At the moment, this function is not used, because for small training
+    corpora, such as Szeged NER, valid sequences might be missing or have
+    such a low probability that the algorithm would erroneously prevent them
+    from being emitted. Use :func:`default_transitions`, below.
+    """
     label_map = {label: i for i, label in enumerate(processor.get_labels())
                  if not label.startswith('[')}
     init_stats = np.zeros(len(label_map), dtype=float)
@@ -98,25 +107,25 @@ def load_viterbi(viterbi_file):
     return npz['init_stats'], npz['transitions']
 
 
-def main():
-    import sys
-    processor_cls = get_processor(sys.argv[2])
-    processor = processor_cls(sys.argv[1], get_format_reader('tsv'))
-    idx2label = processor.get_labels()
-    init_stats, transitions = default_transitions(processor)
-    print('INIT:\n')
-    init_norm = init_stats / sum(init_stats)
-    for idx, v in enumerate(init_stats):
-        if v != 0:
-            print(f'{idx2label[idx]}: {v} ({init_norm[idx]})')
-
-    print('\n\n\nTRANSITIONS:\n')
-    for l1, trans in enumerate(transitions):
-        tr_sum = sum(trans)
-        for l2, v in enumerate(trans):
-            if v != 0:
-                print(f'{idx2label[l1]} -> {idx2label[l2]}: {v} ({v / tr_sum})')
-
-
-if __name__ == "__main__":
-    main()
+# def main():
+#     import sys
+#     processor_cls = get_processor(sys.argv[2])
+#     processor = processor_cls(sys.argv[1], get_format_reader('tsv'))
+#     idx2label = processor.get_labels()
+#     init_stats, transitions = default_transitions(processor)
+#     print('INIT:\n')
+#     init_norm = init_stats / sum(init_stats)
+#     for idx, v in enumerate(init_stats):
+#         if v != 0:
+#             print(f'{idx2label[idx]}: {v} ({init_norm[idx]})')
+#
+#     print('\n\n\nTRANSITIONS:\n')
+#     for l1, trans in enumerate(transitions):
+#         tr_sum = sum(trans)
+#         for l2, v in enumerate(trans):
+#             if v != 0:
+#                 print(f'{idx2label[l1]} -> {idx2label[l2]}: {v} ({v / tr_sum})')
+#
+#
+# if __name__ == "__main__":
+#     main()

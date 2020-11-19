@@ -14,7 +14,7 @@ import yaml
 
 from .data_wrapper import SentenceWrapper
 from .extract_transitions import default_transitions
-from .evaluate import predict
+# from .evaluate import predict
 from .model import TokenClassifier
 from .viterbi import ReverseViterbi
 
