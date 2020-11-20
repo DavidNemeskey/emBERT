@@ -61,6 +61,7 @@ setup(name='embert',
           'scripts/split_to_sets.py',
           'scripts/tokenization_comparison.py',
           'scripts/train_embert.py',
+          'scripts/tag.py',
       ],
       install_requires=dataclasses_req + [
           'progressbar',
