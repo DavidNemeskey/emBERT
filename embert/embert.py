@@ -94,7 +94,6 @@ class EmBERT:
         classes = self.evaluator.predict().y_pred[0]
         for tok, cls in zip(sen, classes):
             tok.append(cls)
-        print(f'returning {sen}')
         return sen
 
     @staticmethod
