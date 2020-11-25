@@ -104,8 +104,11 @@ class Evaluator:
                     max_prob_seq = [e + 1 for e in self.viterbi(state_probs, logp=True)]
                 else:
                     max_prob_seq = max_prob[:seq_len]
+                labels = label_ids[seq][:seq_len]
+                assert labels.size()[0] == len(max_prob_seq), \
+                    f'{labels.size()[0]} != {len(max_prob_seq)}'
 
-                result.add_data(max_prob_seq, label_ids[seq],
+                result.add_data(max_prob_seq, labels,
                                 loss[0].item() if loss and seq == 0 else 0)
 
         return result
