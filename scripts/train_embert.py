@@ -190,6 +190,7 @@ class Trainer:
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.fp16 = fp16
         self.n_gpu = n_gpu
+        self.viterbi = viterbi
 
         self.global_step = 0
 
@@ -259,7 +260,7 @@ class Trainer:
             with save_random_state():
                 loss, report = evaluate(self.model, self.valid_wrapper,
                                         self.viterbi)
-                loss = real_loss(loss, self.n_gpu)
+                # loss = real_loss(loss, self.n_gpu)
             logging.debug(f'Validation loss in epoch {epoch}: {loss}')
             for i, param_group in enumerate(self.optimizer.param_groups):
                 logging.info(f'LR {i}: {param_group["lr"]}')
@@ -412,7 +413,6 @@ def main():
 
         # if args.local_rank != -1:
         #     num_train_optimization_steps //= torch.distributed.get_world_size()
-
     try:
         if args.do_train:
             # TODO understand distributed execution

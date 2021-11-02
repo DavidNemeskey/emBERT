@@ -108,7 +108,9 @@ class Evaluator:
                 assert labels.size()[0] == len(max_prob_seq), \
                     f'{labels.size()[0]} != {len(max_prob_seq)}'
 
+                # TODO: help! Which one?
                 result.add_data(max_prob_seq, labels,
+                                loss[0].mean().item() if loss and seq == 0 else 0)
                                 loss[0].item() if loss and seq == 0 else 0)
 
         return result

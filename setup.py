@@ -68,9 +68,11 @@ setup(name='embert',
           'pyyaml',
           'requests',
           'seqeval<=0.0.5',
-          'torch',  # torch 1.5 is buggy
+          'torch==1.9.1',  # the version that came with Lambda
           'tqdm',
-          'transformers<3.5',
+          # To avoid Rust compiler-related errors
+          'transformers==4.12.2',
+          'tokenizers==0.10.3'
       ],
       # zip_safe=False,
       use_2to3=False)
