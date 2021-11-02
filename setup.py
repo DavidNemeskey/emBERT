@@ -68,7 +68,7 @@ setup(name='embert',
           'pyyaml',
           'requests',
           'seqeval<=0.0.5',
-          'torch<1.5.0',  # torch 1.5 is buggy
+          'torch',  # torch 1.5 is buggy
           'tqdm',
           'transformers<3.5',
       ],

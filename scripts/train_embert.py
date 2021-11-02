@@ -385,23 +385,7 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    num_labels = len(processor.get_labels()) + 1
-
-    tokenizer = BertTokenizer.from_pretrained(
-        model_dir, do_lower_case=args.do_lower_case,
-        do_basic_tokenize=False)  # In quntoken we trust
-
-    train_examples = None
-    num_train_optimization_steps = 0
-    if args.do_train:
-        train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
-        # TODO: understand train_batch_size and clean this up
-        num_train_optimization_steps = args.num_train_epochs * int(
-            len(train_examples) / train_batch_size /
-            args.gradient_accumulation_steps
-        )
-        logging.info(f'Using a train batch size of {train_batch_size}.')
-
+    # Make sure the results are reproducible
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -409,9 +393,25 @@ def main():
     if device.type == 'cuda':
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-        train_examples = processor.get_train_examples()
-        if args.local_rank != -1:
-            num_train_optimization_steps //= torch.distributed.get_world_size()
+
+    num_labels = len(processor.get_labels()) + 1
+
+    tokenizer = BertTokenizer.from_pretrained(
+        model_dir, do_lower_case=args.do_lower_case,
+        do_basic_tokenize=False)  # In quntoken we trust
+
+    if args.do_train:
+        # train_examples = processor.get_train_examples()
+        train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
+        # # TODO: understand train_batch_size and clean this up
+        # num_train_optimization_steps = args.num_train_epochs * int(
+        #     len(train_examples) / train_batch_size /
+        #     args.gradient_accumulation_steps
+        # )
+        # logging.info(f'Using a train batch size of {train_batch_size}.')
+
+        # if args.local_rank != -1:
+        #     num_train_optimization_steps //= torch.distributed.get_world_size()
 
     try:
         if args.do_train:
