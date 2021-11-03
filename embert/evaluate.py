@@ -90,9 +90,7 @@ class Evaluator:
         self.model.eval()
         result = (PredictionResult if predict_only
                   else EvaluationResult)(self.wrapper)
-        import logging
         for log_probs, label_ids, loss in self.log_softmax(not predict_only):
-            logging.info(f'LLL {log_probs=} {label_ids=} {loss=}')
             # Run ReverseViterbi per batch
             for seq, log_prob in enumerate(log_probs):
                 max_prob = np.argmax(log_prob, axis=1)

@@ -29,3 +29,21 @@ If you use `emBERT` in your work, please cite the following paper
 
 Nemeskey Dávid Márk 2020. Egy emBERT próbáló feladat. In Proceedings of the
 16th Conference on Hungarian Computational Linguistics (MSZNY 2020). pp. 409-418.
+
+## Training
+
+Should the need arise to train a better model, or to build one for a different
+domain, the `train_embert.py` script can be used to fine-tune a BERT model on
+a token classification task. An example run that reproduces the chunking
+results (given the same train-valid-test split and a GPU with 11G+ memory) is:
+
+```
+train_embert.py --data_dir ~/data/chunking/szeged_max_bioe1_100/ \
+    --bert_model SZTAKI-HLT/hubert-base-cc --task_name szeged_bioes_chunk \
+    --data_format tsv --output_dir bert_np --do_train --max_seq_length 384 \
+    --num_train_epochs=4 --train_batch_size 10 --learning_rate "1e-5" \
+    --do_eval --eval_batch_size 1 --use_viterbi --seed 42
+```
+
+Note that if the model is trained on a new tag set, it has to be added to
+`embert/processors.py`.
