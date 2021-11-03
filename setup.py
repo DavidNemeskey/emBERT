@@ -14,7 +14,7 @@ def readme():
 
 # A few things depend on the Python version
 version = '.'.join(map(str, sys.version_info))
-if version < '3.9':
+if version < '3.8':
     raise ValueError('The oldest Python version supported is 3.9.')
 
 
@@ -49,6 +49,7 @@ setup(name='embert',
 
           # Specify the Python versions you support here. In particular, ensure
           # that you indicate whether you support Python 2, Python 3 or both.
+          'Programming Language :: Python :: 3.8',
           'Programming Language :: Python :: 3.9'
       ],
       keywords='BERT transformer NER chunking',

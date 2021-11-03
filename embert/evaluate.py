@@ -3,7 +3,7 @@
 
 """Evaluation / prediction functions."""
 
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, List
 
 import numpy as np
 import torch
@@ -80,7 +80,7 @@ class Evaluator:
         """
         return self(False)
 
-    def __call__(self, predict_only: bool = False) -> list[list[str]]:
+    def __call__(self, predict_only: bool = False) -> List[List[str]]:
         """
         Predicts the labels for all sentences in :attr:`wrapper`.
         If _predict_only_ is ``False``, all kinds of additional information are
