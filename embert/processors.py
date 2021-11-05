@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Data processors."""
+"""
+Data processors collect the data files for the train / devel /test splits
+and the labels used in the train corpus.
+"""
 
 from enum import Enum
 import os

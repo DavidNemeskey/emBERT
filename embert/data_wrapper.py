@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Defines the :class:`DataWrapper` classes."""
+"""
+Defines the :class:`DataWrapper` classes which convert the textual
+data collected by the data processors into PyTorch tensors.
+"""
 
 import logging
 import random
