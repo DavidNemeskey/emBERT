@@ -60,7 +60,7 @@ setup(name='embert',
           'scripts/tokenization_comparison.py',
           'scripts/train_embert.py',
       ],
-      install_requires=dataclasses_req + [
+      install_requires= [
           'progressbar',
           'pygithub',
           'pyyaml',
