@@ -35,7 +35,7 @@ from embert.extract_transitions import default_transitions
 from embert.evaluate import Evaluator
 from embert.model import TokenClassifier
 from embert.data_wrapper import DataWrapper, DatasetWrapper
-from embert.processors import all_processors, get_processor, DataSplit
+from embert.processors import DataProcessor, DataSplit
 from embert.viterbi import ReverseViterbi
 
 
@@ -60,7 +60,7 @@ def parse_arguments():
                              'model. The recommended model is '
                              'SZTAKI-HLT/hubert-base-cc. Required for '
                              'training, but not for evaluation.')
-    parser.add_argument('--task_name', required=True, choices=all_processors(),
+    parser.add_argument('--task_name', required=True,
                         help='The name of the task to train.')
     parser.add_argument('--data_format', required=True, choices=all_formats(),
                         help='The data format of the input files.')
@@ -349,7 +349,7 @@ def main():
     logging.info(f'Args: {args}')
 
     format_reader = get_format_reader(args.data_format)
-    processor = get_processor(args.task_name)(args.data_dir, format_reader)
+    processor = DataProcessor(args.data_dir, format_reader)
 
     if args.use_viterbi:
         viterbi = ReverseViterbi(*default_transitions(processor.get_labels()))

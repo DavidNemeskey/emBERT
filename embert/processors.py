@@ -7,7 +7,11 @@ and the labels used in the train corpus.
 """
 
 from enum import Enum
+from itertools import chain
+import logging
 import os
+import random
+import re
 from typing import Callable, Iterable, List, Tuple
 
 from .data_classes import InputExample
@@ -21,34 +25,98 @@ class DataSplit(Enum):
 
 
 class DataProcessor:
-    """Base class for data converters for sequence classification data sets."""
+    """
+    Data processors collect the data files for the train / devel /test splits
+    and the labels used in the train corpus. Files are identified in two ways:
+    - if there is a file named after a data split (e.g. ``train.txt``) right
+      under the data directory, that file is added to the list
+    - if there is a directory named after the split (e.g. ``train``), all
+      files with extensions ``.txt``, ``.tsv`` and ``.conll(up)`` are added
+    - if a per-split data directory is specified (e.g. ``train_dir``), all
+      files with extensions ``.txt``, ``.tsv`` and ``.conll(up)`` are added.
+    """
+    ALIASES = {DataSplit.VALID: {'devel'}}
+    EXT_PATTERN = re.compile('[.](?:tsv|txt|conll(?:up)?)$')
+
     def __init__(self, data_dir: str,
-                 format_reader: Callable[[str], Tuple[List[str], List[str]]]):
+                 format_reader: Callable[[str], Tuple[List[str], List[str]]],
+                 **kwargs: str):
         self.data_dir = data_dir
         self.reader = format_reader
+        self.split_dirs = {split: kwargs.get(f'{split.value}_dir')
+                           for split in DataSplit}
+        self.labels = self.read_labels() + ['[CLS]', '[SEP]']
+        logging.info(f'Labels are: {self.labels}.')
 
-    def get_file_name(self, split: DataSplit) -> str:
-        """Returns the file name associated with _split_."""
-        return os.path.join(self.data_dir, f'{split.value}.txt')
+    def read_labels(self):
+        """
+        Reads the labels from all splits of the training corpus and saves it
+        to a file called _labels.embert_ in the data directory. If the file
+        already exists, it reads the labels from there instead of the corpus.
+        """
+        labels_file = os.path.join(self.data_dir, 'labels.embert')
+        if os.path.isfile(labels_file):
+            with open(labels_file) as inf:
+                return [label for line in inf.read().split('\n')
+                        if (label := line.strip())]
+        else:
+            labels = set()
+            for split in DataSplit:
+                for sentence, sent_labels in self.get_split_data(split):
+                    labels.update(sent_labels)
+            sorted_labels = ['O'] + sorted(labels - {'O'})
+            with open(labels_file, 'wt') as outf:
+                outf.write('\n'.join(sorted_labels))
+            return sorted_labels
 
-    def get_file(
+    @staticmethod
+    def all_files_from_directory(directory: str) -> List[str]:
+        """Enumerates all data files in _dir_ recursively."""
+        return [
+            os.path.join(sub_dir, sub_file)
+            for sub_dir, _, sub_files in os.walk(directory)
+            for sub_file in sub_files
+            if DataProcessor.EXT_PATTERN.search(sub_file)
+        ]
+
+    def get_files(self, split: DataSplit) -> List[str]:
+        """Gets all data files associated with _split_."""
+        split_aliases = {split.value} | DataProcessor.ALIASES.get(split, set())
+        split_pattern = re.compile(
+            f'(?:{"|".join(split_aliases)})[.](?:tsv|txt|conll(?:up)?)'
+        )
+        if (split_dir := self.split_dirs.get(split)):
+            split_files = DataProcessor.all_files_from_directory(split_dir)
+        else:
+            split_files = []
+            for file_name in sorted(os.listdir(self.data_dir)):
+                file_path = os.path.join(self.data_dir, file_name)
+                if file_name in split_aliases and os.path.isdir(file_path):
+                    split_files.extend(
+                        DataProcessor.all_files_from_directory(file_path))
+                elif split_pattern.fullmatch(file_name):
+                    split_files.append(file_path)
+        # Shuffling it so that we don't create "blocks" of similar texts in
+        # the train stream
+        logging.info(f'Files for {split} before shuffling: {split_files}.')
+        random.shuffle(split_files)
+        return split_files
+
+    def get_split_data(
         self, split: DataSplit
     ) -> Iterable[Tuple[List[str], List[str]]]:
         """
-        Returns an iterable that enumerates the content of the file associated
-        with _split_.
+        Returns an iterable of input - output (words and labels in a sentence)
+        tuples.
         """
-        return self.reader(self.get_file_name(split))
+        return chain.from_iterable(map(self.reader, self.get_files(split)))
 
     def get_examples(self, split: DataSplit) -> List[InputExample]:
         """
         Gets a collection of `InputExample`s for the selected split.
         This is the generic version for the per-split methods below.
         """
-        return self.create_examples(
-            self.get_file(split),
-            split.value
-        )
+        return self.create_examples(self.get_split_data(split), split.value)
 
     def get_train_examples(self) -> List[InputExample]:
         """
@@ -66,60 +134,17 @@ class DataProcessor:
 
     def get_labels(self):
         """Gets the list of labels for this data set."""
-        raise NotImplementedError()
+        return self.labels
 
     def create_examples(self, lines, set_type):
         """
         Creates :class:`InputExample`s from the content of the data file.
         """
         examples = []
+        lines = list(lines)
         for i, (sentence, labels) in enumerate(lines):
             guid = "%s-%s" % (set_type, i)
             text_a = sentence
             labels = labels
             examples.append(InputExample(guid, text_a, labels=labels))
         return examples
-
-
-class CoNLLNerProcessor(DataProcessor):
-    """Processor for the CoNLL-2003 data set."""
-    def get_labels(self):
-        return ["O", "B-MISC", "I-MISC",  "B-PER", "I-PER", "B-ORG", "I-ORG",
-                "B-LOC", "I-LOC", "[CLS]", "[SEP]"]
-
-
-class SzegedNerProcessor(DataProcessor):
-    """Processor for the Szeged NER data set."""
-    def get_labels(self):
-        return ['1-LOC', '1-MISC', '1-ORG', '1-PER', 'B-LOC', 'B-MISC',
-                'B-ORG', 'B-PER', 'E-LOC', 'E-MISC', 'E-ORG', 'E-PER', 'I-LOC',
-                'I-MISC', 'I-ORG', 'I-PER', 'O', '[CLS]', '[SEP]']
-
-
-class SzegedChunkProcessor(DataProcessor):
-    """Processor for the Szeged chunking data set (BIO version)."""
-    def get_labels(self):
-        return ['B-NP', 'I-NP', 'O', '[CLS]', '[SEP]']
-
-
-class SzegedBIOESChunkProcessor(DataProcessor):
-    """Processor for the Szeged chunking data set (BIOE1 version)."""
-    def get_labels(self):
-        return ['1-NP', 'B-NP', 'E-NP', 'I-NP', 'O', '[CLS]', '[SEP]']
-
-
-# TODO: to IOB / BIOES + Task
-_processors = {'conll_ner': CoNLLNerProcessor,
-               'szeged_ner': SzegedNerProcessor,
-               'szeged_chunk': SzegedChunkProcessor,
-               'szeged_bioes_chunk': SzegedBIOESChunkProcessor}
-
-
-def all_processors():
-    """Returns the list of processors available."""
-    return _processors.keys()
-
-
-def get_processor(task_name):
-    """Returns the processor associated with _task_name_."""
-    return _processors[task_name]
