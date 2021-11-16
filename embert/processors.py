@@ -45,6 +45,7 @@ class DataProcessor:
         self.reader = format_reader
         self.split_dirs = {split: kwargs.get(f'{split.value}_dir')
                            for split in DataSplit}
+        logging.debug('Split dirs: {self.split_dirs}')
         self.labels = self.read_labels() + ['[CLS]', '[SEP]']
         logging.info(f'Labels are: {self.labels}.')
 
