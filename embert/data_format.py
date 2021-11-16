@@ -25,7 +25,7 @@ def read_tsv(filename):
                 sentence.append(fields[0])
                 labels.append(fields[-1])
             else:
-                logging.info(f'Dropping line {line}...')
+                logging.debug(f'Dropping line {line}...')
         if sentence:
             data.append((sentence, labels))
     return data
