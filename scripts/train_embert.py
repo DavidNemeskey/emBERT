@@ -69,6 +69,12 @@ def parse_arguments():
                              'predictions and checkpoints will be written.')
 
     # Other parameters
+    for split in DataSplit:
+        parser.add_argument(f'--{split.value}_dir',
+                            help=f'the {split.value} data directory. Can be '
+                                 'absolute and relative to --data_dir. '
+                                 'Takes precedence over --data_dir for the '
+                                 f'{split.value} set.')
     parser.add_argument("--cache_dir", default='', type=str,
                         help='To store the pre-trained models downloaded from s3')
     parser.add_argument("--max_seq_length", default=128, type=int,
@@ -349,7 +355,9 @@ def main():
     logging.info(f'Args: {args}')
 
     format_reader = get_format_reader(args.data_format)
-    processor = DataProcessor(args.data_dir, format_reader)
+    args_dict = vars(args)
+    processor = DataProcessor(args_dict.pop('data_dir'),
+                              format_reader, **args_dict)
 
     if args.use_viterbi:
         viterbi = ReverseViterbi(*default_transitions(processor.get_labels()))
