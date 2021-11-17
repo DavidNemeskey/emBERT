@@ -35,7 +35,7 @@ from embert.extract_transitions import default_transitions
 from embert.evaluate import Evaluator
 from embert.model import TokenClassifier
 from embert.data_wrapper import DataWrapper, DatasetWrapper
-from embert.processors import all_processors, get_processor, DataSplit
+from embert.processors import DataProcessor, DataSplit
 from embert.viterbi import ReverseViterbi
 
 
@@ -60,7 +60,7 @@ def parse_arguments():
                              'model. The recommended model is '
                              'SZTAKI-HLT/hubert-base-cc. Required for '
                              'training, but not for evaluation.')
-    parser.add_argument('--task_name', required=True, choices=all_processors(),
+    parser.add_argument('--task_name', required=True,
                         help='The name of the task to train.')
     parser.add_argument('--data_format', required=True, choices=all_formats(),
                         help='The data format of the input files.')
@@ -69,6 +69,12 @@ def parse_arguments():
                              'predictions and checkpoints will be written.')
 
     # Other parameters
+    for split in DataSplit:
+        parser.add_argument(f'--{split.value}_dir',
+                            help=f'the {split.value} data directory. Can be '
+                                 'absolute and relative to --data_dir. '
+                                 'Takes precedence over --data_dir for the '
+                                 f'{split.value} set.')
     parser.add_argument("--cache_dir", default='', type=str,
                         help='To store the pre-trained models downloaded from s3')
     parser.add_argument("--max_seq_length", default=128, type=int,
@@ -349,7 +355,9 @@ def main():
     logging.info(f'Args: {args}')
 
     format_reader = get_format_reader(args.data_format)
-    processor = get_processor(args.task_name)(args.data_dir, format_reader)
+    args_dict = vars(args)
+    processor = DataProcessor(args_dict.pop('data_dir'),
+                              format_reader, **args_dict)
 
     if args.use_viterbi:
         viterbi = ReverseViterbi(*default_transitions(processor.get_labels()))

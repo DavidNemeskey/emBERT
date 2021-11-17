@@ -5,7 +5,7 @@
 Extracts the label->label transition matrix for the Viterbi algorithm.
 """
 
-from typing import List
+from typing import Dict, List, Set
 
 import numpy as np
 
@@ -39,12 +39,71 @@ def extract_transitions(processor):
     return init_norm, trans_norm
 
 
-def default_transitions(labels: List[str]):
+def bio_transitions(label_map: Dict[str, int], l_bs: Set[str],
+                    l_is: Set[str], l_o: Set[str]):
     """
-    Generates default transitions from a BIO (the BII variety) or BIOES/1
-    label set. All valid transitions from a state have uniform probabilities,
+    Generates default transitions from a BIO (the BII variety) label set.
+    All valid transitions from a state have uniform probabilities,
     and invalid transitions have 0.
     """
+    l_start = l_bs | l_o
+
+    transitions = np.zeros((len(label_map), len(label_map)), dtype=float)
+    # In BIO, all states can transition to one of the starting states
+    for l1 in label_map.keys():
+        for l2 in l_start:
+            transitions[label_map[l1], label_map[l2]] = 1
+    # B- and I- to I-
+    for l1 in l_bs | l_is:
+        for l2 in l_is:
+            if l1[1:] == l2[1:]:
+                transitions[label_map[l1], label_map[l2]] = 1
+
+    return transitions
+
+
+def bioes_transitions(label_map: Dict[str, int], l_bs: Set[str],
+                      l_is: Set[str], l_o: Set[str],
+                      l_es: Set[str], l_1s: Set[str]):
+    """
+    Generates default transitions from BIOES/1 label set.
+    All valid transitions from a state have uniform probabilities,
+    and invalid transitions have 0.
+    """
+    l_start = l_bs | l_1s | l_o
+
+    if len(l_bs) != len(l_is) != len(l_es):
+        raise ValueError('Number of B-, I- and E- labels do not match.')
+
+    transitions = np.zeros((len(label_map), len(label_map)), dtype=float)
+    # O -> O, B-, 1-
+    for l1 in l_o | l_1s | l_es:
+        for l2 in l_start:
+            transitions[label_map[l1], label_map[l2]] = 1
+    # B- -> I-, E-
+    for l1 in l_bs:
+        for l2 in l_is | l_es:
+            if l1[1:] == l2[1:]:
+                transitions[label_map[l1], label_map[l2]] = 1
+    # I- -> I-
+    for l1 in l_is:
+        transitions[label_map[l1], label_map[l1]] = 1
+    # I- -> E-
+    for l1 in l_is:
+        for l2 in l_es:
+            if l1[1:] == l2[1:]:
+                transitions[label_map[l1], label_map[l2]] = 1
+
+    return transitions
+
+
+def default_transitions(labels: List[str]):
+    """
+    Generates default transitions from BIOES/1 label set.
+    All valid transitions from a state have uniform probabilities,
+    and invalid transitions have 0.
+    """
+    # Filtering BERT (model)-specific tags (e.g. [CLS])
     label_map = {label: i for i, label in enumerate(labels)
                  if not label.startswith('[')}
     l_bs = {label for label in labels if label.startswith('B-')}
@@ -56,41 +115,14 @@ def default_transitions(labels: List[str]):
 
     l_start = l_bs | l_1s | l_o
 
-    if len(l_bs) != len(l_is):
-        raise ValueError('Number of B- and I- labels do not match.')
-    if len(l_es) and len(l_es) != len(l_is):
-        raise ValueError('Number of I- and E- labels do not match.')
-
     init_stats = np.zeros(len(label_map), dtype=float)
     for label in l_start:
         init_stats[label_map[label]] = 1
 
-    transitions = np.zeros((len(label_map), len(label_map)), dtype=float)
-    for l1 in l_o:
-        for l2 in l_start:
-            transitions[label_map[l1], label_map[l2]] = 1
-    for l1 in l_bs:
-        for l2 in l_is | l_es:
-            if l1[1:] == l2[1:]:
-                transitions[label_map[l1], label_map[l2]] = 1
-    for l1 in l_is:
-        transitions[label_map[l1], label_map[l1]] = 1
-    if l_es:
-        for l1 in l_is:
-            for l2 in l_es:
-                if l1[1:] == l2[1:]:
-                    transitions[label_map[l1], label_map[l2]] = 1
-        for l1 in l_es:
-            for l2 in l_start:
-                transitions[label_map[l1], label_map[l2]] = 1
-    else:
-        for l1 in l_is:
-            for l2 in l_start:
-                transitions[label_map[l1], label_map[l2]] = 1
     if l_1s:
-        for l1 in l_1s:
-            for l2 in l_start:
-                transitions[label_map[l1], label_map[l2]] = 1
+        transitions = bioes_transitions(label_map, l_bs, l_is, l_o, l_es, l_1s)
+    else:
+        transitions = bio_transitions(label_map, l_bs, l_is, l_o)
 
     init_norm = init_stats / init_stats.sum()
     trans_norm = transitions / transitions.sum(axis=1)[:, np.newaxis]

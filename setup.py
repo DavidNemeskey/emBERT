@@ -19,7 +19,7 @@ if version < '3.8':
 
 
 setup(name='embert',
-      version='1.3.1',
+      version='1.4.1',
       description='A Python package for integrating BERT-based NLP models '
                   'into emtsv. Also provides scripts for training and '
                   'analyzing them.',
@@ -60,7 +60,7 @@ setup(name='embert',
           'scripts/tokenization_comparison.py',
           'scripts/train_embert.py',
       ],
-      install_requires=dataclasses_req + [
+      install_requires= [
           'progressbar',
           'pygithub',
           'pyyaml',
