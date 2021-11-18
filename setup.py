@@ -19,7 +19,7 @@ if version < '3.8':
 
 
 setup(name='embert',
-      version='1.4.1',
+      version='1.4.2',
       description='A Python package for integrating BERT-based NLP models '
                   'into emtsv. Also provides scripts for training and '
                   'analyzing them.',
@@ -56,6 +56,7 @@ setup(name='embert',
       packages=find_packages(exclude=['scripts']),
       # Install the scripts
       scripts=[
+          'scripts/bio2bioes.py',
           'scripts/split_to_sets.py',
           'scripts/tokenization_comparison.py',
           'scripts/train_embert.py',

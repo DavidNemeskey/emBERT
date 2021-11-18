@@ -81,8 +81,9 @@ def main():
     if not os.path.isdir(args.output_dir):
         os.makedirs(args.output_dir)
 
-    input_files = sorted(os.path.join(args.input_dir, f)
-                         for f in os.listdir(args.input_dir))
+    input_files = sorted(fpath
+                         for f in os.listdir(args.input_dir)
+                         if op.isfile(fpath := op.join(args.input_dir, f)))
     output_files = sorted(op.join(args.output_dir, op.basename(f))
                           for f in input_files)
     for infile, outfile in zip(input_files, output_files):
