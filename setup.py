@@ -19,7 +19,7 @@ if version < '3.8':
 
 
 setup(name='embert',
-      version='1.4.2',
+      version='1.4.3',
       description='A Python package for integrating BERT-based NLP models '
                   'into emtsv. Also provides scripts for training and '
                   'analyzing them.',
@@ -66,7 +66,8 @@ setup(name='embert',
           'pygithub',
           'pyyaml',
           'requests',
-          'seqeval<=0.0.5',
+          # TODO: upgrade to a more recent version
+          # 'seqeval<=0.0.5',
           'torch==1.9.1',  # the version that came with Lambda
           'tqdm',
           # To avoid Rust compiler-related errors
