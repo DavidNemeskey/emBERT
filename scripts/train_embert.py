@@ -21,7 +21,6 @@ import random
 import sys
 
 import numpy as np
-from seqeval.metrics import classification_report
 import torch
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
@@ -36,6 +35,7 @@ from embert.evaluate import Evaluator
 from embert.model import TokenClassifier
 from embert.data_wrapper import DataWrapper, DatasetWrapper
 from embert.processors import DataProcessor, DataSplit
+from embert.seqeval import classification_report
 from embert.viterbi import ReverseViterbi
 
 
