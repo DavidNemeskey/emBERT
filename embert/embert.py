@@ -19,7 +19,8 @@ from .model import TokenClassifier
 from .viterbi import ReverseViterbi
 
 class EmBERT:
-    def __init__(self, task='ner', source_fields=None, target_fields=None):
+    def __init__(self, task='ner', source_fields=None, target_fields=None,
+                 use_viterbi=True):
         # Field names for e-magyar TSV
         if source_fields is None:
             source_fields = set()
@@ -29,6 +30,7 @@ class EmBERT:
 
         self.source_fields = source_fields
         self.target_fields = target_fields
+        self.use_viterbi = use_viterbi
 
         self.config = {'no_cuda': False, 'max_seq_length': 512}
         self.config.update(self.read_config(task))
@@ -77,7 +79,10 @@ class EmBERT:
             raise ValueError(f'Could not load model {self.config["model"]}: {e}')
 
         init_stats, transitions = default_transitions(self.wrapper.get_labels())
-        self.viterbi = ReverseViterbi(init_stats, transitions)
+        if self.use_viterbi:
+            self.viterbi = ReverseViterbi(init_stats, transitions)
+        else:
+            self.viterbi = None
 
     def _load_model_from_disk(self, model_dir: str) -> Tuple[
         BertTokenizer, TokenClassifier

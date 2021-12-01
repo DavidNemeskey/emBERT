@@ -14,13 +14,12 @@ def readme():
 
 # A few things depend on the Python version
 version = '.'.join(map(str, sys.version_info))
-if version < '3.6':
-    raise ValueError('The oldest Python version supported is 3.6.')
-dataclasses_req = ['dataclasses==0.7'] if version < '3.7' else []
+if version < '3.8':
+    raise ValueError('The oldest Python version supported is 3.9.')
 
 
 setup(name='embert',
-      version='1.1.1',
+      version='1.4.3',
       description='A Python package for integrating BERT-based NLP models '
                   'into emtsv. Also provides scripts for training and '
                   'analyzing them.',
@@ -50,28 +49,31 @@ setup(name='embert',
 
           # Specify the Python versions you support here. In particular, ensure
           # that you indicate whether you support Python 2, Python 3 or both.
-          'Programming Language :: Python :: 3.6',
-          'Programming Language :: Python :: 3.7',
-          'Programming Language :: Python :: 3.8'
+          'Programming Language :: Python :: 3.8',
+          'Programming Language :: Python :: 3.9'
       ],
       keywords='BERT transformer NER chunking',
       packages=find_packages(exclude=['scripts']),
       # Install the scripts
       scripts=[
+          'scripts/bio2bioes.py',
           'scripts/split_to_sets.py',
           'scripts/tokenization_comparison.py',
           'scripts/train_embert.py',
           'scripts/tag.py',
       ],
-      install_requires=dataclasses_req + [
+      install_requires= [
           'progressbar',
           'pygithub',
           'pyyaml',
           'requests',
-          'seqeval<=0.0.5',
-          'torch<1.5.0',  # torch 1.5 is buggy
+          # TODO: upgrade to a more recent version
+          # 'seqeval<=0.0.5',
+          'torch==1.9.1',  # the version that came with Lambda
           'tqdm',
-          'transformers<3.5',
+          # To avoid Rust compiler-related errors
+          'transformers==4.12.2',
+          'tokenizers==0.10.3'
       ],
       # zip_safe=False,
       use_2to3=False)

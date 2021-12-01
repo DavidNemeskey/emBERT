@@ -94,7 +94,8 @@ class Evaluator:
             # Run ReverseViterbi per batch
             for seq, log_prob in enumerate(log_probs):
                 max_prob = np.argmax(log_prob, axis=1)
-                seq_len = np.where(max_prob == self.sep_id)[0][0]
+                # seq_len = np.where(max_prob == self.sep_id)[0][0]
+                seq_len = np.where(label_ids[seq] == self.sep_id)[0][0]
                 if self.viterbi:
                     # Note: the TokenClassifier shift label indices up by one,
                     #       introducing a new 0 label, which basically means
@@ -104,8 +105,10 @@ class Evaluator:
                     max_prob_seq = [e + 1 for e in self.viterbi(state_probs, logp=True)]
                 else:
                     max_prob_seq = max_prob[:seq_len]
+                labels = label_ids[seq][:seq_len]
 
-                result.add_data(max_prob_seq, label_ids[seq],
+                # TODO: help! Which one?
+                result.add_data(max_prob_seq, labels,
                                 loss[0].item() if loss and seq == 0 else 0)
 
         return result
@@ -136,4 +139,5 @@ class Evaluator:
             # Jumping past [CLS], the first token
             # TODO make it more flexible, e.g. skip all "admin" tokens
             log_probs = log_probs.detach().cpu().numpy()[:, 1:]
-            yield log_probs, label_ids[:, 1:], loss
+            label_ids = label_ids[:, 1:].detach().cpu().numpy()
+            yield log_probs, label_ids, loss

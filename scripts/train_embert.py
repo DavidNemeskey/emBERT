@@ -21,11 +21,10 @@ import random
 import sys
 
 import numpy as np
-from seqeval.metrics import classification_report
 import torch
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
-from torch.utils.data.distributed import DistributedSampler
+# from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
 from transformers import (AdamW, BertConfig,
                           BertTokenizer, get_linear_schedule_with_warmup)
@@ -35,7 +34,8 @@ from embert.extract_transitions import default_transitions
 from embert.evaluate import Evaluator
 from embert.model import TokenClassifier
 from embert.data_wrapper import DataWrapper, DatasetWrapper
-from embert.processors import all_processors, get_processor, DataSplit
+from embert.processors import DataProcessor, DataSplit
+from embert.seqeval import classification_report
 from embert.viterbi import ReverseViterbi
 
 
@@ -60,7 +60,7 @@ def parse_arguments():
                              'model. The recommended model is '
                              'SZTAKI-HLT/hubert-base-cc. Required for '
                              'training, but not for evaluation.')
-    parser.add_argument('--task_name', required=True, choices=all_processors(),
+    parser.add_argument('--task_name', required=True,
                         help='The name of the task to train.')
     parser.add_argument('--data_format', required=True, choices=all_formats(),
                         help='The data format of the input files.')
@@ -69,6 +69,12 @@ def parse_arguments():
                              'predictions and checkpoints will be written.')
 
     # Other parameters
+    for split in DataSplit:
+        parser.add_argument(f'--{split.value}_dir',
+                            help=f'the {split.value} data directory. Can be '
+                                 'absolute and relative to --data_dir. '
+                                 'Takes precedence over --data_dir for the '
+                                 f'{split.value} set.')
     parser.add_argument("--cache_dir", default='', type=str,
                         help='To store the pre-trained models downloaded from s3')
     parser.add_argument("--max_seq_length", default=128, type=int,
@@ -107,8 +113,8 @@ def parse_arguments():
                         help='Maximum gradient norm.')
     parser.add_argument("--no_cuda", action='store_true',
                         help='Whether not to use CUDA when available')
-    parser.add_argument("--local_rank", type=int, default=-1,
-                        help='local_rank for distributed training on gpus')
+    parser.add_argument("--gpu", type=int, default=0,
+                        help='the index of the GPU to use (0).')
     parser.add_argument('--seed', type=int, default=42,
                         help='random seed for initialization')
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
@@ -153,7 +159,6 @@ class Trainer:
                  learning_rate: float = 5e-5, warmup_proportion: float = 0.1,
                  adam_epsilon: float = 1e-8, weight_decay: float = 0.01,
                  max_grad_norm: float = 1.0, gradient_accumulation_steps: int = 1,
-                 local_rank: int = -1, n_gpu: int = 1,
                  fp16: bool = False, fp16_opt_level: str = 'O1',
                  viterbi: ReverseViterbi = None):
         """
@@ -175,8 +180,6 @@ class Trainer:
         :param gradient_accumulation_steps: number of updates steps to
                                             accumulate before performing a
                                             backward/update pass.
-        :param local_rank: local_rank for distributed training on GPUs.
-        :param n_gpu: the number of GPUs to train on.
         :param fp16: whether to use 16-bit float precision instead of 32-bit.
         :param fp16_opt_level: for fp16: Apex AMP optimization level selected.
         :param viterbi: a (reverse) Viterbi model for validation.
@@ -189,7 +192,7 @@ class Trainer:
         self.max_grad_norm = max_grad_norm
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.fp16 = fp16
-        self.n_gpu = n_gpu
+        self.viterbi = viterbi
 
         self.global_step = 0
 
@@ -200,8 +203,8 @@ class Trainer:
         num_batches = train_wrapper.num_examples / batch_size
         opt_steps_per_epoch = num_batches / gradient_accumulation_steps
         self.num_train_optimization_steps = self.epochs * opt_steps_per_epoch
-        if local_rank != -1:
-            self.num_train_optimization_steps //= torch.distributed.get_world_size()
+        # if local_rank != -1:
+        #     self.num_train_optimization_steps //= torch.distributed.get_world_size()
 
         # Optimization
         param_optimizer = list(model.named_parameters())
@@ -235,15 +238,15 @@ class Trainer:
             self.model, self.optimizer = amp.initialize(
                 self.model, self.optimizer, opt_level=fp16_opt_level)
 
-        # multi-gpu training (should be after apex fp16 initialization)
-        if n_gpu > 1:
-            self.model = torch.nn.DataParallel(self.model)
+        # # multi-gpu training (should be after apex fp16 initialization)
+        # if n_gpu > 1:
+        #     self.model = torch.nn.DataParallel(self.model)
 
-        if local_rank != -1:
-            self.model = torch.nn.parallel.DistributedDataParallel(
-                self.model, device_ids=[local_rank],
-                output_device=local_rank, find_unused_parameters=True
-            )
+        # if local_rank != -1:
+        #     self.model = torch.nn.parallel.DistributedDataParallel(
+        #         self.model, device_ids=[local_rank],
+        #         output_device=local_rank, find_unused_parameters=True
+        #     )
 
     def train(self):
         logging.info('***** Running training *****')
@@ -259,7 +262,7 @@ class Trainer:
             with save_random_state():
                 loss, report = evaluate(self.model, self.valid_wrapper,
                                         self.viterbi)
-                loss = real_loss(loss, self.n_gpu)
+                # loss = real_loss(loss, self.n_gpu)
             logging.debug(f'Validation loss in epoch {epoch}: {loss}')
             for i, param_group in enumerate(self.optimizer.param_groups):
                 logging.info(f'LR {i}: {param_group["lr"]}')
@@ -276,7 +279,7 @@ class Trainer:
         ) in enumerate(otqdm(self.train_wrapper, desc='Iteration')):
             loss, _ = self.model(input_ids, segment_ids, input_mask,
                                  label_ids, valid_ids, l_mask)
-            loss = real_loss(loss, self.n_gpu)
+            loss = real_loss(loss, 1)  # n_gpu
             if self.gradient_accumulation_steps > 1:
                 loss /= self.gradient_accumulation_steps
 
@@ -352,7 +355,9 @@ def main():
     logging.info(f'Args: {args}')
 
     format_reader = get_format_reader(args.data_format)
-    processor = get_processor(args.task_name)(args.data_dir, format_reader)
+    args_dict = vars(args)
+    processor = DataProcessor(args_dict.pop('data_dir'),
+                              format_reader, **args_dict)
 
     if args.use_viterbi:
         viterbi = ReverseViterbi(*default_transitions(processor.get_labels()))
@@ -360,19 +365,18 @@ def main():
         viterbi = None
 
     # TODO is this right?
-    if args.local_rank == -1 or args.no_cuda:
-        device = torch.device('cuda' if torch.cuda.is_available() and not args.no_cuda else "cpu")
-        n_gpu = torch.cuda.device_count()
+    if args.no_cuda or not torch.cuda.is_available():
+        device = torch.device('cpu')
+        # n_gpu = torch.cuda.device_count()
     else:
-        torch.cuda.set_device(args.local_rank)
-        device = torch.device("cuda", args.local_rank)
-        n_gpu = 1
-        # Initializes the distributed backend which will take care of
-        # sychronizing nodes/GPUs
-        torch.distributed.init_process_group(backend='nccl')
-    logging.info(f'Device information: device: {device} n_gpu: {n_gpu}, '
-                 f'distributed training: {args.local_rank != -1}, '
-                 f'16-bits training: {args.fp16}')
+        # TODO why both?
+        torch.cuda.set_device(args.gpu)
+        device = torch.device("cuda", args.gpu)
+        # # Initializes the distributed backend which will take care of
+        # # sychronizing nodes/GPUs
+        # torch.distributed.init_process_group(backend='nccl')
+    logging.info(f'Device information: device: {device}, '
+                 f'gpu: {args.gpu}, 16-bits training: {args.fp16}')
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
         if args.do_train:
@@ -385,23 +389,7 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    num_labels = len(processor.get_labels()) + 1
-
-    tokenizer = BertTokenizer.from_pretrained(
-        model_dir, do_lower_case=args.do_lower_case,
-        do_basic_tokenize=False)  # In quntoken we trust
-
-    train_examples = None
-    num_train_optimization_steps = 0
-    if args.do_train:
-        train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
-        # TODO: understand train_batch_size and clean this up
-        num_train_optimization_steps = args.num_train_epochs * int(
-            len(train_examples) / train_batch_size /
-            args.gradient_accumulation_steps
-        )
-        logging.info(f'Using a train batch size of {train_batch_size}.')
-
+    # Make sure the results are reproducible
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -409,17 +397,33 @@ def main():
     if device.type == 'cuda':
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-        train_examples = processor.get_train_examples()
-        if args.local_rank != -1:
-            num_train_optimization_steps //= torch.distributed.get_world_size()
+
+    num_labels = len(processor.get_labels()) + 1
+
+    tokenizer = BertTokenizer.from_pretrained(
+        model_dir, do_lower_case=args.do_lower_case,
+        do_basic_tokenize=False)  # In quntoken we trust
+
+    if args.do_train:
+        # train_examples = processor.get_train_examples()
+        train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
+        # # TODO: understand train_batch_size and clean this up
+        # num_train_optimization_steps = args.num_train_epochs * int(
+        #     len(train_examples) / train_batch_size /
+        #     args.gradient_accumulation_steps
+        # )
+        # logging.info(f'Using a train batch size of {train_batch_size}.')
+
+        # if args.local_rank != -1:
+        #     num_train_optimization_steps //= torch.distributed.get_world_size()
 
     try:
         if args.do_train:
-            # TODO understand distributed execution
-            # Make sure only the first process in distributed training will
-            # download model & vocab
-            if args.local_rank not in [-1, 0]:
-                torch.distributed.barrier()
+            # # TODO understand distributed execution
+            # # Make sure only the first process in distributed training will
+            # # download model & vocab
+            # if args.local_rank not in [-1, 0]:
+            #     torch.distributed.barrier()
 
             # Prepare model
             config = BertConfig.from_pretrained(
@@ -430,15 +434,15 @@ def main():
             model = TokenClassifier.from_pretrained(
                 model_dir, from_tf=False, config=config)
 
-            # Make sure only the first process in distributed training will
-            # download model & vocab
-            if args.local_rank == 0:
-                torch.distributed.barrier()
+            # # Make sure only the first process in distributed training will
+            # # download model & vocab
+            # if args.local_rank == 0:
+            #     torch.distributed.barrier()
 
             # Create the data wrappers
             train_wrapper = DatasetWrapper(
                 processor, DataSplit.TRAIN,
-                RandomSampler if args.local_rank == -1 else DistributedSampler,
+                RandomSampler,
                 train_batch_size, args.max_seq_length, tokenizer, device
             )
             valid_wrapper = DatasetWrapper(
@@ -452,8 +456,7 @@ def main():
                 args.learning_rate, args.warmup_proportion,
                 args.adam_epsilon, args.weight_decay,
                 args.max_grad_norm, args.gradient_accumulation_steps,
-                args.local_rank, n_gpu, args.fp16, args.fp16_opt_level,
-                viterbi
+                args.fp16, args.fp16_opt_level, viterbi
             )
             trainer.train()
 
@@ -483,8 +486,7 @@ def main():
 
     model.to(device)
 
-    # TODO: do it regardless of local_rank
-    if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
+    if args.do_eval:
         test_wrapper = DatasetWrapper(
             processor, DataSplit.TEST, SequentialSampler, args.eval_batch_size,
             args.max_seq_length, tokenizer, device

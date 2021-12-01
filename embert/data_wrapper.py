@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Defines the :class:`DataWrapper` classes."""
+"""
+Defines the :class:`DataWrapper` classes which convert the textual
+data collected by the data processors into PyTorch tensors.
+"""
 
 import logging
 import random
@@ -24,6 +27,7 @@ class DataWrapper:
         self.device = device
 
         self.label_list = self.get_labels()
+        self.label_map = {label: i for i, label in enumerate(self.label_list, 1)}
 
     def get_labels(self):
         """Returns the list of labels used in the dataset."""
@@ -53,7 +57,6 @@ class DatasetWrapper(DataWrapper):
         self.split = split
         super().__init__(batch_size, max_seq_length, tokenizer, device)
 
-        self.label_map = {label: i for i, label in enumerate(self.label_list, 1)}
         examples = processor.get_examples(split)
         features = self.convert_examples_to_features(
             examples, max_seq_length)
@@ -192,8 +195,10 @@ class SentenceWrapper(DataWrapper):
         valid.append(1)
         input_ids = self.tokenizer.convert_tokens_to_ids(ntokens)
         input_mask = [1] * len(input_ids)
-        labels = torch.empty([1, min(len(sentence), self.max_seq_length)],
+        labels = torch.empty([1, min(len(sentence) + 2, self.max_seq_length)],
                              dtype=torch.long, device=self.device)
+        labels[0, 0] = self.label_map['[CLS]']
+        labels[0, -1] = self.label_map['[SEP]']
 
         self.dataset = (  # TensorDataset(
             torch.tensor(input_ids, dtype=torch.long, device=self.device).unsqueeze(0),

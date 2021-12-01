@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """Data format readers."""
+import logging
 
 
 def read_tsv(filename):
@@ -15,14 +16,16 @@ def read_tsv(filename):
         data = []
         sentence, labels = [], []
         for line in map(str.strip, inf):
-            if line:
+            if not line:
+                if sentence:
+                    data.append((sentence, labels))
+                sentence, labels = [], []
+            elif not line.startswith('# '):
                 fields = line.split('\t')
                 sentence.append(fields[0])
                 labels.append(fields[-1])
             else:
-                if sentence:
-                    data.append((sentence, labels))
-                sentence, labels = [], []
+                logging.debug(f'Dropping line {line}...')
         if sentence:
             data.append((sentence, labels))
     return data
