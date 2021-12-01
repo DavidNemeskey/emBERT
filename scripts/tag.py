@@ -10,6 +10,8 @@ import argparse
 import logging
 import os
 
+from tqdm import tqdm
+
 from embert.data_format import all_formats, get_format_reader
 from embert.embert import EmBERT
 
@@ -47,9 +49,12 @@ def main():
 
     em = EmBERT(task=args.task_name)
     reader = get_format_reader(args.data_format)
-    for input_file in os.listdir(args.input_dir):
+    for input_file in tqdm(os.listdir(args.input_dir), desc='Files'):
         with open(os.path.join(args.output_dir, input_file), 'wt') as outf:
-            for sentence, labels in reader(os.path.join(args.input_dir, input_file)):
+            for sentence, labels in tqdm(
+                reader(os.path.join(args.input_dir, input_file)),
+                desc='Sentences'
+            ):
                 tagged = em.process_sentence([[w] for w in sentence], [0])
                 for token in tagged:
                     print('\t'.join(token), file=outf)
