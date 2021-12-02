@@ -195,8 +195,8 @@ class SentenceWrapper(DataWrapper):
         valid.append(1)
         input_ids = self.tokenizer.convert_tokens_to_ids(ntokens)
         input_mask = [1] * len(input_ids)
-        labels = torch.empty([1, min(len(sentence) + 2, self.max_seq_length)],
-                             dtype=torch.long, device=self.device)
+        labels = torch.full([1, min(len(sentence) + 2, self.max_seq_length)],
+                             0, dtype=torch.long, device=self.device)
         labels[0, 0] = self.label_map['[CLS]']
         labels[0, -1] = self.label_map['[SEP]']
 
