@@ -10,6 +10,7 @@ import argparse
 import logging
 import os
 import os.path as op
+import sys
 
 from tqdm import tqdm
 
@@ -54,14 +55,16 @@ def main():
     # for input_file in tqdm(os.listdir(args.input_dir), desc='Files'):
     for input_file in tqdm(
         DataProcessor.all_files_from_directory(args.input_dir),
-        desc='Files'
+        desc='Files', file=sys.stdout
     ):
         output_file = op.join(args.output_dir,
                               op.relpath(input_file, start=args.input_dir))
         if not op.isdir(output_dir := op.dirname(output_file)):
             os.makedirs(output_dir)
         with open(output_file, 'wt') as outf:
-            for sentence, labels in tqdm(reader(input_file), desc='Sentences'):
+            for sentence, labels in tqdm(
+                reader(input_file), desc='Sentences', file=sys.stdout
+            ):
                 tagged = em.process_sentence([[w] for w in sentence], [0])
                 for token in tagged:
                     print('\t'.join(token), file=outf)
