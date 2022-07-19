@@ -36,6 +36,10 @@ def parse_arguments():
                              'downloaded to the models directory.')
     parser.add_argument('--data-format', required=True, choices=all_formats(),
                         help='The data format of the input files.')
+    parser.add_argument('--tsv-field', '-f', type=int, default=0,
+                        help='The 0-based index of the field in the .tsv file '
+                             'to use as input. Preferably, it is the index of '
+                             'the raw text (or "form") column. Default: 0.')
     return parser.parse_args()
 
 
@@ -65,7 +69,8 @@ def main():
             for sentence, labels in tqdm(
                 reader(input_file), desc='Sentences', file=sys.stdout
             ):
-                tagged = em.process_sentence([[w] for w in sentence], [0])
+                tagged = em.process_sentence([[w] for w in sentence],
+                                             [args.tsv_field])
                 for token in tagged:
                     print('\t'.join(token), file=outf)
                 print(file=outf)

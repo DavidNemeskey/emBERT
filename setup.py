@@ -19,7 +19,7 @@ if version < (3, 8, 0):
 
 
 setup(name='embert',
-      version='1.5.1',
+      version='1.5.2',
       description='A Python package for integrating BERT-based NLP models '
                   'into emtsv. Also provides scripts for training and '
                   'analyzing them.',
