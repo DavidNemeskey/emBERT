@@ -13,13 +13,13 @@ def readme():
         return f.read()
 
 # A few things depend on the Python version
-version = '.'.join(map(str, sys.version_info))
-if version < '3.8':
+version = tuple(sys.version_info)[:3]
+if version < (3, 8, 0):
     raise ValueError('The oldest Python version supported is 3.9.')
 
 
 setup(name='embert',
-      version='1.5.0',
+      version='1.5.1',
       description='A Python package for integrating BERT-based NLP models '
                   'into emtsv. Also provides scripts for training and '
                   'analyzing them.',
@@ -51,6 +51,7 @@ setup(name='embert',
           # that you indicate whether you support Python 2, Python 3 or both.
           'Programming Language :: Python :: 3.8',
           'Programming Language :: Python :: 3.9'
+          'Programming Language :: Python :: 3.10'
       ],
       keywords='BERT transformer NER chunking',
       packages=find_packages(exclude=['scripts']),
