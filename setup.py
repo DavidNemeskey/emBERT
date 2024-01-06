@@ -73,7 +73,7 @@ setup(name='embert',
           'torch==1.9.1',  # the version that came with Lambda
           'tqdm',
           # To avoid Rust compiler-related errors
-          'transformers==4.12.2',
+          'transformers==4.36.0',
           'tokenizers==0.10.3'
       ],
       # zip_safe=False,
