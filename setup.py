@@ -70,7 +70,7 @@ setup(name='embert',
           'requests',
           # TODO: upgrade to a more recent version
           # 'seqeval<=0.0.5',
-          'torch==1.9.1',  # the version that came with Lambda
+          'torch==1.13.1',  # the version that came with Lambda
           'tqdm',
           # To avoid Rust compiler-related errors
           'transformers==4.36.0',
