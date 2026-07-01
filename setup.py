@@ -52,6 +52,7 @@ setup(name='embert',
           'Programming Language :: Python :: 3.8',
           'Programming Language :: Python :: 3.9'
           'Programming Language :: Python :: 3.10'
+          'Programming Language :: Python :: 3.14'
       ],
       keywords='BERT transformer NER chunking',
       packages=find_packages(exclude=['scripts']),
@@ -70,11 +71,8 @@ setup(name='embert',
           'requests',
           # TODO: upgrade to a more recent version
           # 'seqeval<=0.0.5',
-          'torch==1.13.1',  # the version that came with Lambda
           'tqdm',
           # To avoid Rust compiler-related errors
-          'transformers==4.36.0',
-          'tokenizers==0.10.3'
       ],
       # zip_safe=False,
       use_2to3=False)

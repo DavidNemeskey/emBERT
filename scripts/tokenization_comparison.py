@@ -11,7 +11,7 @@ import argparse
 from collections import Counter
 import os
 
-from transformers import BertTokenizer
+from transformers import AutoTokenizer
 
 
 def parse_arguments():
@@ -66,8 +66,8 @@ def main():
 
     words = collect_words(args.input_dir)
 
-    mlbt = BertTokenizer(args.model_dir, do_lower_case=False)
-    hubt = BertTokenizer(args.vocab_file, do_lower_case=False)
+    mlbt = AutoTokenizer(args.model_dir, do_lower_case=False)
+    hubt = AutoTokenizer(args.vocab_file, do_lower_case=False)
 
     mlstats = count_wordpieces(words, mlbt)
     hustats = count_wordpieces(words, hubt)

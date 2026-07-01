@@ -3,7 +3,9 @@
 
 """Data format readers."""
 import logging
-
+from datasets import load_dataset
+import pandas as pd
+import ast
 
 def read_tsv(filename):
     """
@@ -12,7 +14,7 @@ def read_tsv(filename):
     column.
     """
     # TODO: A proper CoNLL(-U Plus) reader
-    with open(filename) as inf:
+    with open(filename, encoding='utf-8') as inf:
         data = []
         sentence, labels = [], []
         for line in map(str.strip, inf):
@@ -31,7 +33,41 @@ def read_tsv(filename):
     return data
 
 
-_readers = {'tsv': read_tsv}
+def read_csv(filename):
+    """
+    Reads the ficsort/SzegedNER dataset from Hugging Face and formats it 
+    exactly like the old read_tsv function.
+    
+    Returns:
+        A list of tuples containing (sentence_tokens, label_strings).
+    """
+
+    print(f"Reading CSV file: {filename}...")
+
+    dataset = pd.read_csv(filename, sep=",")
+
+    dataset['tokens'] = dataset['tokens'].apply(ast.literal_eval)
+    dataset['ner'] = dataset['ner'].apply(ast.literal_eval)
+
+    print(f"Dataset columns: {dataset.columns.tolist()}")
+    
+    data = []
+    for _, row in dataset.iterrows():
+        sentence = row['tokens']
+        # Convert Hugging Face integer tags back to their string representations
+        labels = [tag for tag in row['ner']]
+        
+        data.append((sentence, labels))
+
+    print(data[0][0])
+
+    print(f"Read {len(data)} examples from {filename}.")
+        
+    return data
+
+
+
+_readers = {'tsv': read_tsv, 'csv': read_csv}
 
 
 def all_formats():

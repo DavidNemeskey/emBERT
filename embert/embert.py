@@ -9,7 +9,7 @@ import sys
 from typing import Any, Dict, Tuple
 
 import torch
-from transformers import BertTokenizer
+from transformers import AutoTokenizer
 import yaml
 
 from .data_wrapper import SentenceWrapper
@@ -85,10 +85,10 @@ class EmBERT:
             self.viterbi = None
 
     def _load_model_from_disk(self, model_dir: str) -> Tuple[
-        BertTokenizer, TokenClassifier
+        AutoTokenizer, TokenClassifier
     ]:
         """Loads the tokenizer and the classifier from _model_dir_."""
-        tokenizer = BertTokenizer.from_pretrained(
+        tokenizer = AutoTokenizer.from_pretrained(
             model_dir, do_lower_case=False,
             do_basic_tokenize=False)  # In quntoken we trust
         model = TokenClassifier.from_pretrained(model_dir)

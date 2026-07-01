@@ -36,7 +36,7 @@ class DataProcessor:
       files with extensions ``.txt``, ``.tsv`` and ``.conll(up)`` are added.
     """
     ALIASES = {DataSplit.VALID: {'devel'}}
-    EXT_PATTERN = re.compile('[.](?:tsv|txt|conll(?:up)?)$')
+    EXT_PATTERN = re.compile('[.](?:tsv|txt|conll|csv(?:up)?)$')
 
     def __init__(self, data_dir: str,
                  format_reader: Callable[[str], Tuple[List[str], List[str]]],
