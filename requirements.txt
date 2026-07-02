@@ -1,9 +1,9 @@
-dataclasses==0.7; python_version < '3.7'
+dataclasses
 progressbar
 pygithub
 pyyaml
 requests
-seqeval<=0.0.5
-torch<1.14.0
+seqeval
+torch
 tqdm
-transformers<4.37
+transformers

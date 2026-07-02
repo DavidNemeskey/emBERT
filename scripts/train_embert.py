@@ -26,8 +26,9 @@ from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 # from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
-from transformers import (AdamW, BertConfig,
-                          BertTokenizer, get_linear_schedule_with_warmup)
+from transformers import (BertConfig,
+                          AutoTokenizer, get_linear_schedule_with_warmup)
+from torch.optim import AdamW
 
 from embert.data_format import all_formats, get_format_reader
 from embert.extract_transitions import default_transitions
@@ -400,7 +401,7 @@ def main():
 
     num_labels = len(processor.get_labels()) + 1
 
-    tokenizer = BertTokenizer.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(
         model_dir, do_lower_case=args.do_lower_case,
         do_basic_tokenize=False)  # In quntoken we trust
 
@@ -478,7 +479,7 @@ def main():
             # No do_train:
             # Load a trained model and vocabulary that you have fine-tuned
             model = TokenClassifier.from_pretrained(model_dir)
-            tokenizer = BertTokenizer.from_pretrained(
+            tokenizer = AutoTokenizer.from_pretrained(
                 model_dir, do_lower_case=args.do_lower_case,
                 do_basic_tokenize=False)  # In quntoken we trust
     except KeyboardInterrupt:
